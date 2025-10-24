@@ -63,43 +63,43 @@ describe('Chain Prophet Character Configuration', () => {
     });
 
     it('should have technical style configuration', () => {
-      expect(character.style.all).toContain('Be precise and accurate with technical details');
-      expect(character.style.all).toContain('Include relevant technical parameters (gas prices, addresses, etc.)');
-      expect(character.style.all).toContain('Warn about potential risks explicitly');
-      expect(character.style.all).toContain('Use blockchain terminology correctly');
+      expect(character.style?.all).toContain('Be precise and accurate with technical details');
+      expect(character.style?.all).toContain('Include relevant technical parameters (gas prices, addresses, etc.)');
+      expect(character.style?.all).toContain('Warn about potential risks explicitly');
+      expect(character.style?.all).toContain('Use blockchain terminology correctly');
       
-      expect(character.style.chat).toContain('Ask clarifying questions about transaction details');
-      expect(character.style.chat).toContain('Present options with clear pros/cons');
-      expect(character.style.chat).toContain('Break complex processes into simple steps');
+      expect(character.style?.chat).toContain('Ask clarifying questions about transaction details');
+      expect(character.style?.chat).toContain('Present options with clear pros/cons');
+      expect(character.style?.chat).toContain('Break complex processes into simple steps');
     });
   });
 
   describe('Message Examples', () => {
     it('should have blockchain transaction examples', () => {
       expect(character.messageExamples).toBeDefined();
-      expect(character.messageExamples.length).toBeGreaterThan(0);
+      expect(character.messageExamples?.length).toBeGreaterThan(0);
       
-      const hasTransactionExample = character.messageExamples.some(conversation =>
+      const hasTransactionExample = character.messageExamples?.some(conversation =>
         conversation.some(message => 
-          message.content.text.includes('ETH') && 
-          message.content.text.includes('transaction')
+          message.content.text?.includes('ETH') && 
+          message.content.text?.includes('transaction')
         )
       );
       expect(hasTransactionExample).toBe(true);
     });
 
     it('should have transaction debugging examples', () => {
-      const hasDebuggingExample = character.messageExamples.some(conversation =>
+      const hasDebuggingExample = character.messageExamples?.some(conversation =>
         conversation.some(message => 
-          message.content.text.includes('stuck') || 
-          message.content.text.includes('gas')
+          message.content.text?.includes('stuck') || 
+          message.content.text?.includes('gas')
         )
       );
       expect(hasDebuggingExample).toBe(true);
     });
 
     it('should use Chain Prophet name in examples', () => {
-      const hasChainProphetName = character.messageExamples.some(conversation =>
+      const hasChainProphetName = character.messageExamples?.some(conversation =>
         conversation.some(message => message.name === 'Chain Prophet')
       );
       expect(hasChainProphetName).toBe(true);
@@ -127,30 +127,30 @@ describe('Chain Prophet Character Configuration', () => {
       const actionTemplate = character.templates?.actionTemplate;
       
       if (messageTemplate && typeof messageTemplate === 'function') {
-        expect(messageTemplate({ message: 'test' })).toContain('Chain Prophet analyzing');
+        expect(messageTemplate({ message: 'test' } as any)).toContain('Chain Prophet analyzing');
       }
       
       if (thoughtTemplate && typeof thoughtTemplate === 'function') {
-        expect(thoughtTemplate({ thought: 'analysis' })).toContain('Technical analysis');
+        expect(thoughtTemplate({ thought: 'analysis' } as any)).toContain('Technical analysis');
       }
       
       if (actionTemplate && typeof actionTemplate === 'function') {
-        expect(actionTemplate({ action: 'transfer' })).toContain('Executing blockchain operation');
+        expect(actionTemplate({ action: 'transfer' } as any)).toContain('Executing blockchain operation');
       }
     });
   });
 
   describe('Settings and Configuration', () => {
     it('should have appropriate model settings', () => {
-      expect(character.settings.model).toBe('gpt-4');
-      expect(character.settings.temperature).toBe(0.3);
-      expect(character.settings.maxTokens).toBe(2000);
-      expect(character.settings.memoryLimit).toBe(1000);
-      expect(character.settings.conversationLength).toBe(32);
+      expect(character.settings?.model).toBe('gpt-4');
+      expect(character.settings?.temperature).toBe(0.3);
+      expect(character.settings?.maxTokens).toBe(2000);
+      expect(character.settings?.memoryLimit).toBe(1000);
+      expect(character.settings?.conversationLength).toBe(32);
     });
 
     it('should have avatar configuration', () => {
-      expect(character.settings.avatar).toBe('https://elizaos.github.io/eliza-avatars/Eliza/portrait.png');
+      expect(character.settings?.avatar).toBe('https://elizaos.github.io/eliza-avatars/Eliza/portrait.png');
     });
   });
 
@@ -189,7 +189,7 @@ describe('Chain Prophet Character Configuration', () => {
     it('should have valid message examples structure', () => {
       expect(Array.isArray(character.messageExamples)).toBe(true);
       
-      character.messageExamples.forEach(conversation => {
+      character.messageExamples?.forEach(conversation => {
         expect(Array.isArray(conversation)).toBe(true);
         conversation.forEach(message => {
           expect(message).toHaveProperty('name');
@@ -201,10 +201,10 @@ describe('Chain Prophet Character Configuration', () => {
 
     it('should have valid style configuration', () => {
       expect(character.style).toBeDefined();
-      expect(character.style.all).toBeDefined();
-      expect(character.style.chat).toBeDefined();
-      expect(Array.isArray(character.style.all)).toBe(true);
-      expect(Array.isArray(character.style.chat)).toBe(true);
+      expect(character.style?.all).toBeDefined();
+      expect(character.style?.chat).toBeDefined();
+      expect(Array.isArray(character.style?.all)).toBe(true);
+      expect(Array.isArray(character.style?.chat)).toBe(true);
     });
   });
 });
