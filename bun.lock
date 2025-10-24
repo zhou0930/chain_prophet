@@ -4,7 +4,7 @@
     "": {
       "name": "chain_prophet",
       "dependencies": {
-        "@elizaos/cli": "1.6.3",
+        "@elizaos/cli": "^1.6.3",
         "@elizaos/client": "1.6.3",
         "@elizaos/core": "1.6.3",
         "@elizaos/plugin-bootstrap": "1.6.3",
