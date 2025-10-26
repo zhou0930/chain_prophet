@@ -160,20 +160,24 @@ describe('Chain Prophet Character Configuration', () => {
       expect(character.plugins).toContain('@elizaos/plugin-bootstrap');
     });
 
-    it('should conditionally include EVM plugin', () => {
+    it('should conditionally include EVM plugin', async () => {
       const originalEnv = process.env.EVM_PRIVATE_KEY;
       
       try {
         // Test with EVM_PRIVATE_KEY set
         process.env.EVM_PRIVATE_KEY = 'test-key';
-        expect(character.plugins).toContain('@elizaos/plugin-evm');
+        delete require.cache[require.resolve('../character.ts')];
+        const { character: reloadedCharacter1 } = await import('../character.ts?t=' + Date.now());
+        expect(reloadedCharacter1.plugins).toContain('@elizaos/plugin-evm');
         
         // Test without EVM_PRIVATE_KEY
         delete process.env.EVM_PRIVATE_KEY;
-        // Note: This test might not work as expected since the character is already loaded
-        // In a real scenario, you'd need to reload the character configuration
+        delete require.cache[require.resolve('../character.ts')];
+        const { character: reloadedCharacter2 } = await import('../character.ts?t=' + (Date.now() + 1));
+        expect(reloadedCharacter2.plugins).not.toContain('@elizaos/plugin-evm');
       } finally {
         process.env.EVM_PRIVATE_KEY = originalEnv;
+        delete require.cache[require.resolve('../character.ts')];
       }
     });
   });

@@ -11,6 +11,7 @@ export const character: Character = {
   plugins: [
     // Core plugins first
     '@elizaos/plugin-sql',
+    '@elizaos/plugin-evm',
 
     // Text-only plugins (no embedding support)
     ...(process.env.ANTHROPIC_API_KEY?.trim() ? ['@elizaos/plugin-anthropic'] : []),
@@ -51,8 +52,11 @@ export const character: Character = {
   ],
   settings: {
     secrets: {},
+    "chains": {
+        "evm": ["sepolia"]
+    },
     avatar: 'https://elizaos.github.io/eliza-avatars/Eliza/portrait.png',
-    model: 'gpt-4',
+    model: 'gpt-4o',
     temperature: 0.3, // Lower temperature for more precise technical responses
     maxTokens: 2000,
     memoryLimit: 1000,

@@ -7,6 +7,7 @@ var character = {
   username: "chain_prophet",
   plugins: [
     "@elizaos/plugin-sql",
+    "@elizaos/plugin-evm",
     ...process.env.ANTHROPIC_API_KEY?.trim() ? ["@elizaos/plugin-anthropic"] : [],
     ...process.env.OPENROUTER_API_KEY?.trim() ? ["@elizaos/plugin-openrouter"] : [],
     ...process.env.OPENAI_API_KEY?.trim() ? ["@elizaos/plugin-openai"] : [],
@@ -30,8 +31,11 @@ var character = {
   ],
   settings: {
     secrets: {},
+    chains: {
+      evm: ["sepolia"]
+    },
     avatar: "https://elizaos.github.io/eliza-avatars/Eliza/portrait.png",
-    model: "gpt-4",
+    model: "gpt-4o",
     temperature: 0.3,
     maxTokens: 2000,
     memoryLimit: 1000,
@@ -185,5 +189,5 @@ export {
   character
 };
 
-//# debugId=F86DADDC01089C1364756E2164756E21
+//# debugId=6F72781A8F0233C864756E2164756E21
 //# sourceMappingURL=index.js.map

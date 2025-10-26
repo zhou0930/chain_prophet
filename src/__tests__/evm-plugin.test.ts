@@ -36,31 +36,39 @@ describe('EVM Plugin Integration', () => {
       expect(character.username).toBe('chain_prophet');
     });
 
-    it('should include EVM plugin when EVM_PRIVATE_KEY is set', () => {
+    it('should include EVM plugin when EVM_PRIVATE_KEY is set', async () => {
       // Mock environment variable
       const originalEnv = process.env.EVM_PRIVATE_KEY;
       process.env.EVM_PRIVATE_KEY = 'test-key';
 
       try {
-        // Re-import character to get updated configuration
-        expect(character.plugins).toContain('@elizaos/plugin-evm');
+        // Clear module cache and re-import character
+        delete require.cache[require.resolve('../character.ts')];
+        const { character: reloadedCharacter } = await import('../character.ts?t=' + Date.now());
+        expect(reloadedCharacter.plugins).toContain('@elizaos/plugin-evm');
       } finally {
         // Restore original environment
         process.env.EVM_PRIVATE_KEY = originalEnv;
+        // Clear cache again to restore original state
+        delete require.cache[require.resolve('../character.ts')];
       }
     });
 
-    it('should not include EVM plugin when EVM_PRIVATE_KEY is not set', () => {
+    it('should not include EVM plugin when EVM_PRIVATE_KEY is not set', async () => {
       // Mock environment variable
       const originalEnv = process.env.EVM_PRIVATE_KEY;
       delete process.env.EVM_PRIVATE_KEY;
 
       try {
-        // Re-import character to get updated configuration
-        expect(character.plugins).not.toContain('@elizaos/plugin-evm');
+        // Clear module cache and re-import character
+        delete require.cache[require.resolve('../character.ts')];
+        const { character: reloadedCharacter } = await import('../character.ts?t=' + Date.now());
+        expect(reloadedCharacter.plugins).not.toContain('@elizaos/plugin-evm');
       } finally {
         // Restore original environment
         process.env.EVM_PRIVATE_KEY = originalEnv;
+        // Clear cache again to restore original state
+        delete require.cache[require.resolve('../character.ts')];
       }
     });
 

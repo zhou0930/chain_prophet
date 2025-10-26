@@ -26,7 +26,7 @@ export const transferExample = {
     amount: "0.1",
     token: "ETH",
     toAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-    chain: "ethereum"
+    chain: "mainnet"
   }
 };
 
@@ -70,7 +70,7 @@ export const bridgeExample = {
   parameters: {
     token: "USDC",
     amount: "50",
-    fromChain: "ethereum",
+    fromChain: "mainnet",
     toChain: "base"
   }
 };
@@ -92,7 +92,7 @@ export const governanceExample = {
   parameters: {
     proposalId: "42",
     support: "FOR",
-    chain: "ethereum"
+    chain: "mainnet"
   }
 };
 
@@ -121,11 +121,16 @@ export const balanceExample = {
  * The EVM plugin supports all EVM-compatible chains including:
  */
 export const supportedChains = [
-  "ethereum",      // Ethereum Mainnet
-  "base",          // Base
+  "mainnet",       // Ethereum Mainnet
+  "sepolia",       // Ethereum Sepolia Testnet
+  "base",          // Base Mainnet
+  "baseSepolia",   // Base Sepolia Testnet
   "arbitrum",      // Arbitrum One
-  "optimism",      // Optimism
-  "polygon",       // Polygon
+  "arbitrumSepolia", // Arbitrum Sepolia Testnet
+  "optimism",      // Optimism Mainnet
+  "optimismSepolia", // Optimism Sepolia Testnet
+  "polygon",       // Polygon Mainnet
+  "polygonMumbai", // Polygon Mumbai Testnet
   "bsc",           // Binance Smart Chain
   "avalanche",     // Avalanche C-Chain
   "zksync",        // zkSync Era
@@ -141,11 +146,15 @@ export const supportedChains = [
  * The plugin automatically resolves these token symbols:
  */
 export const commonTokens = {
-  ethereum: {
+  mainnet: {
     "ETH": "0x0000000000000000000000000000000000000000",
     "USDC": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     "USDT": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
     "DAI": "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+  },
+  sepolia: {
+    "ETH": "0x0000000000000000000000000000000000000000",
+    "USDC": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
   },
   base: {
     "ETH": "0x0000000000000000000000000000000000000000",
