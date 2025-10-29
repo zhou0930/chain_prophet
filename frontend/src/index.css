@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-gray-200;
+  }
+  
+  body {
+    @apply bg-white text-gray-900;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .chat-message {
+    @apply p-4 rounded-lg max-w-3xl;
+  }
+  
+  .user-message {
+    @apply bg-primary-500 text-white ml-auto;
+  }
+  
+  .agent-message {
+    @apply bg-secondary-100 text-secondary-900 mr-auto;
+  }
+  
+  .typing-indicator {
+    @apply flex space-x-1;
+  }
+  
+  .typing-dot {
+    @apply w-2 h-2 bg-primary-500 rounded-full animate-pulse;
+  }
+}

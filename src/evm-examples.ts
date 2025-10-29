@@ -26,7 +26,7 @@ export const transferExample = {
     amount: "0.1",
     token: "ETH",
     toAddress: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-    chain: "mainnet"
+    chain: "sepolia"
   }
 };
 
@@ -49,7 +49,7 @@ export const swapExample = {
     fromToken: "USDC",
     toToken: "DAI",
     amount: "100",
-    chain: "arbitrum"
+    chain: "sepolia"
   }
 };
 
@@ -71,7 +71,7 @@ export const bridgeExample = {
     token: "USDC",
     amount: "50",
     fromChain: "mainnet",
-    toChain: "base"
+    toChain: "sepolia"
   }
 };
 
@@ -92,7 +92,7 @@ export const governanceExample = {
   parameters: {
     proposalId: "42",
     support: "FOR",
-    chain: "mainnet"
+    chain: "sepolia"
   }
 };
 
@@ -111,7 +111,7 @@ export const balanceExample = {
   expectedAction: "EVM_BALANCE",
   parameters: {
     token: "ETH",
-    chain: "all"
+    chain: "sepolia"
   }
 };
 

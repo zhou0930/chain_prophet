@@ -124,7 +124,7 @@ describe('EVM Plugin Integration', () => {
 
     it('should have appropriate settings', () => {
       expect(character.settings).toBeDefined();
-      expect(character.settings.model).toBe('gpt-4');
+      expect(character.settings.model).toBe('gpt-4o');
       expect(character.settings.temperature).toBe(0.3);
       expect(character.settings.maxTokens).toBe(2000);
     });
