@@ -3,12 +3,14 @@ import { Send, Loader2 } from 'lucide-react';
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void;
+  onFocus?: () => void;
   isLoading: boolean;
   placeholder?: string;
 }
 
 const MessageInput: React.FC<MessageInputProps> = ({ 
-  onSendMessage, 
+  onSendMessage,
+  onFocus,
   isLoading, 
   placeholder = "输入消息..." 
 }) => {
@@ -38,14 +40,26 @@ const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
+  const handleFormClick = (e: React.MouseEvent) => {
+    // 点击表单区域时自动开始对话（如果还没有会话）
+    if (onFocus) {
+      onFocus();
+    }
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="flex items-end space-x-2 p-4 bg-white border-t border-secondary-200">
+    <form 
+      onSubmit={handleSubmit} 
+      onClick={handleFormClick}
+      className="flex items-end space-x-2 p-4 bg-white border-t border-secondary-200"
+    >
       <div className="flex-1 relative">
         <textarea
           ref={textareaRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={onFocus}
           placeholder={placeholder}
           disabled={isLoading}
           className="w-full px-4 py-3 pr-12 border border-secondary-300 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"

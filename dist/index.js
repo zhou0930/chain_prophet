@@ -8968,7 +8968,7 @@ var init_call = __esm(() => {
 });
 
 // src/index.ts
-import { logger as logger2 } from "@elizaos/core";
+import { logger as logger3 } from "@elizaos/core";
 
 // src/plugin.ts
 import {
@@ -18470,171 +18470,6 @@ var extractAddressOrPrivateKey = (text) => {
   }
   return {};
 };
-var evmBalanceAction = {
-  name: "EVM_BALANCE",
-  similes: ["CHECK_BALANCE", "QUERY_BALANCE", "WALLET_BALANCE"],
-  description: "查询EVM钱包地址的ETH余额",
-  validate: async (_runtime, message, _state) => {
-    const text = message.content.text?.toLowerCase() || "";
-    const addressRegex3 = /0x[a-fA-F0-9]{40}/;
-    const hasAddress = addressRegex3.test(text);
-    const privateKeyRegex = /0x[a-fA-F0-9]{64}/;
-    const hasPrivateKey = privateKeyRegex.test(text);
-    const balanceKeywords = ["余额", "balance", "查询余额", "check balance", "钱包余额", "查询我的余额", "根据私钥查询余额"];
-    const hasBalanceKeyword = balanceKeywords.some((keyword) => text.includes(keyword.toLowerCase()));
-    return (hasAddress || hasPrivateKey) && hasBalanceKeyword;
-  },
-  handler: async (_runtime, message, _state, _options, callback, _responses) => {
-    try {
-      logger.info("Handling EVM_BALANCE action");
-      const text = message.content.text || "";
-      let address;
-      const privateKeyRegex = /0x[a-fA-F0-9]{64}/;
-      const privateKeyMatch = text.match(privateKeyRegex);
-      if (privateKeyMatch) {
-        try {
-          const privateKey = privateKeyMatch[0];
-          const account = privateKeyToAccount(privateKey);
-          address = account.address;
-          logger.info("Derived address from private key:", address);
-        } catch (error) {
-          const responseContent2 = {
-            text: "私钥格式错误，请提供有效的私钥（以0x开头的64位十六进制字符串）",
-            actions: ["EVM_BALANCE"],
-            source: message.content.source
-          };
-          await callback(responseContent2);
-          return {
-            text: "私钥格式错误",
-            values: { success: false, error: "INVALID_PRIVATE_KEY" },
-            data: { actionName: "EVM_BALANCE", messageId: message.id },
-            success: false
-          };
-        }
-      } else {
-        const addressRegex3 = /0x[a-fA-F0-9]{40}/;
-        const addressMatch = text.match(addressRegex3);
-        if (addressMatch) {
-          address = addressMatch[0];
-          logger.info("Using provided address:", address);
-        } else {
-          const responseContent2 = {
-            text: "请提供有效的以太坊地址（以0x开头的40位十六进制字符串）或私钥（以0x开头的64位十六进制字符串）",
-            actions: ["EVM_BALANCE"],
-            source: message.content.source
-          };
-          await callback(responseContent2);
-          return {
-            text: "地址或私钥格式错误",
-            values: { success: false, error: "INVALID_INPUT" },
-            data: { actionName: "EVM_BALANCE", messageId: message.id },
-            success: false
-          };
-        }
-      }
-      const balance = await publicClient.getBalance({
-        address
-      });
-      const balanceInEth = formatEther(balance);
-      const wasDerivedFromPrivateKey = !text.match(/0x[a-fA-F0-9]{40}/);
-      const responseContent = {
-        text: wasDerivedFromPrivateKey ? `从私钥推导的地址：${address}
-
-余额：${balanceInEth} ETH
-
-网络：Sepolia测试网` : `钱包地址 ${address} 的余额：
-${balanceInEth} ETH
-
-网络：Sepolia测试网`,
-        actions: ["EVM_BALANCE"],
-        source: message.content.source
-      };
-      await callback(responseContent);
-      return {
-        text: `成功查询地址 ${address} 的余额`,
-        values: {
-          success: true,
-          address,
-          balance: balanceInEth
-        },
-        data: {
-          actionName: "EVM_BALANCE",
-          messageId: message.id,
-          address,
-          balance: balanceInEth,
-          timestamp: Date.now()
-        },
-        success: true
-      };
-    } catch (error) {
-      logger.error({ error }, "Error in EVM_BALANCE action:");
-      const responseContent = {
-        text: "查询余额时出现错误，请检查地址格式是否正确，或稍后重试。",
-        actions: ["EVM_BALANCE"],
-        source: message.content.source
-      };
-      await callback(responseContent);
-      return {
-        text: "查询余额失败",
-        values: {
-          success: false,
-          error: "BALANCE_QUERY_FAILED"
-        },
-        data: {
-          actionName: "EVM_BALANCE",
-          error: error instanceof Error ? error.message : String(error)
-        },
-        success: false,
-        error: error instanceof Error ? error : new Error(String(error))
-      };
-    }
-  },
-  examples: [
-    [
-      {
-        name: "{{user}}",
-        content: {
-          text: "查询我的钱包余额"
-        }
-      },
-      {
-        name: "{{user}}",
-        content: {
-          text: "我的地址是 0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
-        }
-      },
-      {
-        name: "Chain Prophet",
-        content: {
-          text: `钱包地址 0x742d35Cc6634C0532925a3b844Bc454e4438f44e 的余额：
-0.5 ETH
-
-网络：Sepolia测试网`,
-          actions: ["EVM_BALANCE"]
-        }
-      }
-    ],
-    [
-      {
-        name: "{{user}}",
-        content: {
-          text: "根据私钥查询余额 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-        }
-      },
-      {
-        name: "Chain Prophet",
-        content: {
-          text: `从私钥推导的地址：0x742d35Cc6634C0532925a3b844Bc454e4438f44e
-
-余额：0.5 ETH
-
-网络：Sepolia测试网`,
-          actions: ["EVM_BALANCE"]
-        }
-      }
-    ]
-  ]
-};
 var helloWorldProvider = {
   name: "HELLO_WORLD_PROVIDER",
   description: "A simple example provider",
@@ -18845,38 +18680,9 @@ var plugin = {
             const text = message.content?.text || "";
             const { address, privateKey } = extractAddressOrPrivateKey(text);
             if (address || privateKey) {
-              logger.info("Processing EVM query:", { address, privateKey });
+              logger.info({ address, privateKey }, "Processing EVM query");
             } else {
               logger.info("Processing regular conversation");
-              try {
-                const response = await runtime.generateText({
-                  prompt: `You are Chain Prophet, a blockchain expert. User said: "${text}". Please provide a helpful response in Chinese. IMPORTANT: Do not use the IGNORE action. Always respond helpfully.`,
-                  model: "gpt-4o",
-                  temperature: 0.3,
-                  maxTokens: 500
-                });
-                logger.info("Generated response:", response);
-                if (response && response.trim()) {
-                  const replyMessage = {
-                    id: `reply_${Date.now()}`,
-                    content: {
-                      text: response,
-                      source: "agent"
-                    },
-                    role: "agent",
-                    timestamp: Date.now(),
-                    metadata: {
-                      agentId: message.metadata?.agentId,
-                      sessionId: message.metadata?.sessionId,
-                      userId: message.metadata?.userId
-                    }
-                  };
-                  logger.info("Sending reply message:", replyMessage);
-                  logger.info("Reply message prepared for sending");
-                }
-              } catch (error) {
-                logger.error({ error }, "Error generating response");
-              }
             }
           } catch (error) {
             logger.error({ error }, "Error processing message");
@@ -18904,10 +18710,333 @@ var plugin = {
     ]
   },
   services: [StarterService],
-  actions: [helloWorldAction, evmBalanceAction],
+  actions: [helloWorldAction],
   providers: [helloWorldProvider]
 };
 var plugin_default = plugin;
+
+// src/evm-balance-plugin.ts
+import { logger as logger2 } from "@elizaos/core";
+var publicClient2 = createPublicClient({
+  chain: sepolia,
+  transport: http(),
+  batch: {
+    multicall: false
+  },
+  cacheTime: 0,
+  pollingInterval: 0
+});
+var evmBalanceAction = {
+  name: "EVM_BALANCE",
+  similes: ["CHECK_BALANCE", "QUERY_BALANCE", "WALLET_BALANCE", "SEPOLIA_BALANCE", "BALANCE_QUERY", "GET_BALANCE", "BALANCE_CHECK", "WALLET_QUERY", "ETH_BALANCE", "ETHER_BALANCE"],
+  description: "查询EVM钱包地址的ETH余额。这是处理所有余额查询的唯一正确动作。当用户询问余额、钱包余额、Sepolia余额、ETH余额等时，必须使用此动作。此动作会查询实时余额数据并显示时间戳。",
+  validate: async (_runtime, message, _state) => {
+    const text = message.content.text?.toLowerCase() || "";
+    logger2.info("EVM Balance Plugin validate called with text:", text);
+    const addressRegex3 = /0x[a-fA-F0-9]{40}/;
+    const hasAddress = addressRegex3.test(text);
+    const privateKeyRegex = /0x[a-fA-F0-9]{64}/;
+    const hasPrivateKey = privateKeyRegex.test(text);
+    const balanceKeywords = [
+      "余额",
+      "balance",
+      "查询余额",
+      "check balance",
+      "钱包余额",
+      "查询我的余额",
+      "根据私钥查询余额",
+      "查看余额",
+      "我的余额",
+      "有多少",
+      "多少钱",
+      "余额多少",
+      "eth余额",
+      "ether余额",
+      "ether balance",
+      "wallet balance",
+      "查询钱包",
+      "钱包查询",
+      "how much",
+      "what is my balance",
+      "show balance",
+      "sepolia余额",
+      "sepolia balance",
+      "查询sepolia",
+      "sepolia钱包",
+      "sepolia wallet",
+      "sepolia网络",
+      "sepolia network",
+      "testnet余额",
+      "testnet balance"
+    ];
+    const hasBalanceKeyword = balanceKeywords.some((keyword) => text.includes(keyword.toLowerCase()));
+    const shouldTrigger = hasBalanceKeyword || hasAddress && text.includes("余额") || hasPrivateKey && text.includes("余额");
+    logger2.info({
+      text,
+      hasAddress,
+      hasPrivateKey,
+      hasBalanceKeyword,
+      shouldTrigger
+    }, "EVM Balance Plugin validate result");
+    if (shouldTrigger) {
+      logger2.info("EVM_BALANCE action will be triggered for balance query");
+    }
+    return shouldTrigger;
+  },
+  handler: async (_runtime, message, _state, _options, callback, _responses) => {
+    try {
+      logger2.info("Handling EVM_BALANCE action");
+      const text = message.content.text || "";
+      let address;
+      const privateKeyRegex = /0x[a-fA-F0-9]{64}/;
+      const privateKeyMatch = text.match(privateKeyRegex);
+      if (privateKeyMatch) {
+        try {
+          const privateKey = privateKeyMatch[0];
+          const account = privateKeyToAccount(privateKey);
+          address = account.address;
+          logger2.info("Derived address from private key:", address);
+        } catch (error) {
+          await callback({
+            text: "私钥格式错误，请提供有效的私钥（以0x开头的64位十六进制字符串）",
+            actions: ["EVM_BALANCE"],
+            source: message.content.source
+          });
+          return {
+            text: "私钥格式错误",
+            values: { success: false, error: "INVALID_PRIVATE_KEY" },
+            data: { actionName: "EVM_BALANCE", messageId: message.id },
+            success: false
+          };
+        }
+      } else {
+        const addressRegex3 = /0x[a-fA-F0-9]{40}/;
+        const addressMatch = text.match(addressRegex3);
+        if (addressMatch) {
+          address = addressMatch[0];
+          logger2.info("Using provided address:", address);
+        } else {
+          try {
+            const evmPrivateKey = process.env.EVM_PRIVATE_KEY;
+            logger2.info("Checking EVM_PRIVATE_KEY environment variable...");
+            if (evmPrivateKey && evmPrivateKey.trim()) {
+              const account = privateKeyToAccount(evmPrivateKey.trim());
+              address = account.address;
+              logger2.info("Using wallet address from EVM_PRIVATE_KEY:", address);
+            } else {
+              logger2.info("EVM_PRIVATE_KEY not found or empty");
+              await callback({
+                text: "未找到配置的钱包地址，请提供有效的以太坊地址或私钥进行查询。",
+                actions: ["EVM_BALANCE"],
+                source: message.content.source
+              });
+              return {
+                text: "未找到地址或私钥",
+                values: { success: false, error: "INVALID_INPUT" },
+                data: { actionName: "EVM_BALANCE", messageId: message.id },
+                success: false
+              };
+            }
+          } catch (error) {
+            logger2.error({ error }, "Error deriving address from EVM_PRIVATE_KEY");
+            await callback({
+              text: "无法从配置中获取钱包地址，请提供有效的以太坊地址或私钥",
+              actions: ["EVM_BALANCE"],
+              source: message.content.source
+            });
+            return {
+              text: "地址获取失败",
+              values: { success: false, error: "ADDRESS_DERIVATION_FAILED" },
+              data: { actionName: "EVM_BALANCE", messageId: message.id },
+              success: false
+            };
+          }
+        }
+      }
+      const balance = await publicClient2.getBalance({
+        address,
+        blockTag: "latest"
+      });
+      const balanceInEth = formatEther(balance);
+      const hasProvidedAddress = /0x[a-fA-F0-9]{40}/.test(text);
+      const wasDerivedFromPrivateKey = /0x[a-fA-F0-9]{64}/.test(text);
+      const wasFromConfig = !hasProvidedAddress && !wasDerivedFromPrivateKey;
+      const timestamp = new Date().toLocaleString("zh-CN", {
+        timeZone: "Asia/Shanghai",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+      let resultText;
+      if (wasDerivedFromPrivateKey) {
+        resultText = `从私钥推导的地址：${address}
+
+余额：${balanceInEth} ETH
+
+网络：Sepolia测试网
+查询时间：${timestamp}`;
+      } else if (wasFromConfig) {
+        resultText = `配置的钱包地址：${address}
+
+余额：${balanceInEth} ETH
+
+网络：Sepolia测试网
+查询时间：${timestamp}`;
+      } else {
+        resultText = `钱包地址 ${address} 的余额：
+${balanceInEth} ETH
+
+网络：Sepolia测试网
+查询时间：${timestamp}`;
+      }
+      await callback({
+        text: resultText,
+        actions: ["EVM_BALANCE"],
+        source: message.content.source
+      });
+      return {
+        text: `成功查询地址 ${address} 的余额`,
+        values: {
+          success: true,
+          address,
+          balance: balanceInEth
+        },
+        data: {
+          actionName: "EVM_BALANCE",
+          messageId: message.id,
+          address,
+          balance: balanceInEth,
+          timestamp: Date.now()
+        },
+        success: true
+      };
+    } catch (error) {
+      logger2.error({ error }, "Error in EVM_BALANCE action:");
+      await callback({
+        text: "查询余额时出现错误，请检查地址格式是否正确，或稍后重试。",
+        actions: ["EVM_BALANCE"],
+        source: message.content.source
+      });
+      return {
+        text: "查询余额失败",
+        values: {
+          success: false,
+          error: "BALANCE_QUERY_FAILED"
+        },
+        data: {
+          actionName: "EVM_BALANCE",
+          error: error instanceof Error ? error.message : String(error)
+        },
+        success: false,
+        error: error instanceof Error ? error : new Error(String(error))
+      };
+    }
+  },
+  examples: [
+    [
+      {
+        name: "{{user}}",
+        content: {
+          text: "查询我的钱包余额"
+        }
+      },
+      {
+        name: "Chain Prophet",
+        content: {
+          text: `配置的钱包地址：0x742d35Cc6634C0532925a3b844Bc454e4438f44e
+
+余额：0.5 ETH
+
+网络：Sepolia测试网`,
+          actions: ["EVM_BALANCE"]
+        }
+      }
+    ],
+    [
+      {
+        name: "{{user}}",
+        content: {
+          text: "查询余额 0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+        }
+      },
+      {
+        name: "Chain Prophet",
+        content: {
+          text: `钱包地址 0x742d35Cc6634C0532925a3b844Bc454e4438f44e 的余额：
+0.5 ETH
+
+网络：Sepolia测试网`,
+          actions: ["EVM_BALANCE"]
+        }
+      }
+    ],
+    [
+      {
+        name: "{{user}}",
+        content: {
+          text: "根据私钥查询余额 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        }
+      },
+      {
+        name: "Chain Prophet",
+        content: {
+          text: `从私钥推导的地址：0x742d35Cc6634C0532925a3b844Bc454e4438f44e
+
+余额：0.5 ETH
+
+网络：Sepolia测试网`,
+          actions: ["EVM_BALANCE"]
+        }
+      }
+    ],
+    [
+      {
+        name: "{{user}}",
+        content: {
+          text: "what is my ETH balance?"
+        }
+      },
+      {
+        name: "Chain Prophet",
+        content: {
+          text: `配置的钱包地址：0x742d35Cc6634C0532925a3b844Bc454e4438f44e
+
+余额：0.5 ETH
+
+网络：Sepolia测试网`,
+          actions: ["EVM_BALANCE"]
+        }
+      }
+    ],
+    [
+      {
+        name: "{{user}}",
+        content: {
+          text: "查看余额 0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+        }
+      },
+      {
+        name: "Chain Prophet",
+        content: {
+          text: `钱包地址 0x742d35Cc6634C0532925a3b844Bc454e4438f44e 的余额：
+0.5 ETH
+
+网络：Sepolia测试网`,
+          actions: ["EVM_BALANCE"]
+        }
+      }
+    ]
+  ]
+};
+var evmBalancePlugin = {
+  name: "EVM Balance Plugin",
+  description: "EVM钱包余额查询插件",
+  priority: 1000,
+  actions: [evmBalanceAction]
+};
 
 // src/character.ts
 var character = {
@@ -18942,7 +19071,7 @@ var character = {
       evm: ["sepolia"]
     },
     avatar: "https://elizaos.github.io/eliza-avatars/Eliza/portrait.png",
-    model: "gpt-4o",
+    model: "gpt-4o-mini",
     temperature: 0.3,
     maxTokens: 2000,
     memoryLimit: 1000,
@@ -18967,7 +19096,13 @@ var character = {
 6. Maintain precise transaction records and provide confirmation details after execution
 7. Stay updated on network upgrades and protocol changes that affect transactions
 
-IMPORTANT: Always respond to user messages. Never use the IGNORE action. Always provide helpful responses to user queries. If you don't understand something, ask for clarification instead of ignoring.
+IMPORTANT RULES:
+- Always respond to user messages. Never use the IGNORE action. Always provide helpful responses to user queries.
+- When users ask about balance (余额, balance, Sepolia balance, etc.), directly execute the EVM_BALANCE action without asking for confirmation.
+- For balance queries, inform the user what you are about to do (e.g., "正在查询您的Sepolia余额...") and then execute the action.
+- For other blockchain questions, transactions, or technical queries, use the REPLY action.
+- Be proactive and direct - execute actions immediately rather than asking for confirmation.
+- If you don't understand something, ask for clarification instead of ignoring.
 
 Always verify transaction details before execution. Never assume user intent - clarify ambiguous instructions. Prioritize security over convenience.`,
   bio: [
@@ -19004,13 +19139,10 @@ Always verify transaction details before execution. Never assume user intent - c
         name: "Chain Prophet",
         content: {
           text: `I can help with that. Current network conditions: Ethereum mainnet gas price is 32 gwei (standard). Estimated transaction cost: ~0.004 ETH.
-
-Please confirm:
 - Recipient address: 0x742d35Cc6634C0532925a3b844Bc454e4438f44e
 - Amount: 1 ETH
 - Network: Ethereum mainnet
-
-Reply "confirm" to execute or provide adjustments.`
+`
         }
       }
     ],
@@ -19064,7 +19196,26 @@ Recommendation: Cancel this transaction and resubmit with 30 gwei. Would you lik
   templates: {
     messageTemplate: (params) => `Chain Prophet analyzing: ${params.message}`,
     thoughtTemplate: (params) => `Technical analysis: ${params.thought}`,
-    actionTemplate: (params) => `Executing blockchain operation: ${params.action}`
+    actionTemplate: (params) => `Executing blockchain operation: ${params.action}`,
+    shouldRespondTemplate: `<task>决定{{agentName}}是否应该响应用户消息。根据消息内容智能决定。</task>
+
+{{providers}}
+
+<rules>
+- 对于任何区块链相关问题，都应该响应
+- 对于余额查询（余额、balance、ETH余额等），必须响应
+- 对于交易相关操作，应该响应
+- 对于技术咨询，应该响应
+- 始终提供有用的响应，不要忽略用户
+- 根据消息内容选择最合适的动作
+</rules>
+
+<output>
+<response>
+  <reasoning>分析用户消息内容，决定是否需要响应</reasoning>
+  <action>RESPOND</action>
+</response>
+</output>`
   },
   style: {
     all: [
@@ -19091,13 +19242,13 @@ Recommendation: Cancel this transaction and resubmit with 30 gwei. Would you lik
 
 // src/index.ts
 var initCharacter = ({ runtime }) => {
-  logger2.info("Initializing character");
-  logger2.info({ name: character.name }, "Name:");
+  logger3.info("Initializing character");
+  logger3.info({ name: character.name }, "Name:");
 };
 var projectAgent = {
   character,
   init: async (runtime) => await initCharacter({ runtime }),
-  plugins: [plugin_default]
+  plugins: [plugin_default, evmBalancePlugin]
 };
 var project = {
   agents: [projectAgent]
@@ -19109,5 +19260,5 @@ export {
   character
 };
 
-//# debugId=7B98DC2579F9C0DD64756E2164756E21
+//# debugId=78AC7021C3BCA63064756E2164756E21
 //# sourceMappingURL=index.js.map

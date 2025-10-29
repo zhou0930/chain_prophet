@@ -8,8 +8,9 @@ import TypingIndicator from './components/TypingIndicator';
 import MessageInput from './components/MessageInput';
 import AgentSelector from './components/AgentSelector';
 import EVMBalanceCard from './components/EVMBalanceCard';
+import ConversationHistory from './components/ConversationHistory';
 import ErrorBoundary from './components/ErrorBoundary';
-import { Bot, MessageCircle, Wallet, Settings } from 'lucide-react';
+import { Bot, MessageCircle, Settings, History } from 'lucide-react';
 
 const App: React.FC = () => {
   const {
@@ -22,8 +23,8 @@ const App: React.FC = () => {
     sendMessage,
     startNewSession,
     endSession,
-    renewSession,
     sendHeartbeat,
+    loadConversation,
     messagesEndRef,
   } = useChat();
 
@@ -38,6 +39,7 @@ const App: React.FC = () => {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [showAgentSelector, setShowAgentSelector] = useState(false);
   const [showEVMResult, setShowEVMResult] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   // 自动选择第一个可用的 Agent
   useEffect(() => {
@@ -57,6 +59,13 @@ const App: React.FC = () => {
     return () => clearInterval(heartbeatInterval);
   }, [currentSession, sendHeartbeat]);
 
+  // 自动开始对话（如果没有会话且有选中的 Agent）
+  const autoStartSession = () => {
+    if (!currentSession && selectedAgent && !isLoading) {
+      startNewSession(selectedAgent.id);
+    }
+  };
+
   // 处理消息发送
   const handleSendMessage = (content: string) => {
     if (!currentSession) {
@@ -71,17 +80,17 @@ const App: React.FC = () => {
       return;
     }
 
-    // 检查是否是 EVM 相关查询
-    const { address, privateKey } = extractAddressOrPrivateKey(content);
-    if (address || privateKey) {
-      if (privateKey) {
-        getBalanceFromPrivateKey(privateKey);
-        setShowEVMResult(true);
-      } else if (address) {
-        getBalance(address);
-        setShowEVMResult(true);
-      }
-    }
+    // 暂时禁用 EVM 余额查询功能，专注于修复聊天功能
+    // const { address, privateKey } = extractAddressOrPrivateKey(content);
+    // if (address || privateKey) {
+    //   if (privateKey) {
+    //     getBalanceFromPrivateKey(privateKey);
+    //     setShowEVMResult(true);
+    //   } else if (address) {
+    //     getBalance(address);
+    //     setShowEVMResult(true);
+    //   }
+    // }
 
     sendMessage(content);
   };
@@ -102,6 +111,28 @@ const App: React.FC = () => {
     }
   };
 
+  // 处理加载历史对话
+  const handleSelectConversation = (sessionId: string, historyMessages: any[]) => {
+    // 加载历史消息到当前会话
+    if (currentSession && currentSession.id === sessionId) {
+      loadConversation(sessionId, historyMessages);
+    } else {
+      // 如果有会话但ID不匹配，需要先结束当前会话
+      if (currentSession) {
+        endSession();
+      }
+      // 如果没有会话，创建一个新会话，然后加载消息
+      if (selectedAgent) {
+        startNewSession(selectedAgent.id);
+        // 延迟加载消息，等待会话创建
+        setTimeout(() => {
+          loadConversation(sessionId, historyMessages);
+        }, 1000);
+      }
+    }
+    setShowHistory(false);
+  };
+
   return (
     <ErrorBoundary>
       <div className="h-screen bg-secondary-50 flex flex-col">
@@ -119,6 +150,13 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowHistory(true)}
+              className="flex items-center space-x-2 px-3 py-2 text-sm text-secondary-600 hover:text-secondary-900 hover:bg-secondary-100 rounded-md transition-colors"
+            >
+              <History size={16} />
+              <span>历史对话</span>
+            </button>
             <button
               onClick={() => setShowAgentSelector(!showAgentSelector)}
               className="flex items-center space-x-2 px-3 py-2 text-sm text-secondary-600 hover:text-secondary-900 hover:bg-secondary-100 rounded-md transition-colors"
@@ -165,7 +203,10 @@ const App: React.FC = () => {
           />
 
           {/* 消息列表 */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div 
+            className="flex-1 overflow-y-auto p-4 space-y-4"
+            onClick={autoStartSession}
+          >
             {messages.length === 0 && !isTyping && (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <MessageCircle size={48} className="text-secondary-300 mb-4" />
@@ -173,7 +214,7 @@ const App: React.FC = () => {
                   开始与 AI Agent 对话
                 </h3>
                 <p className="text-secondary-600 mb-4">
-                  选择一个 Agent 开始对话，或直接发送消息
+                  点击此处或输入框开始对话
                 </p>
                 <div className="text-sm text-secondary-500 space-y-1">
                   <p>💡 支持 EVM 钱包余额查询</p>
@@ -183,8 +224,8 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
+            {messages.map((message, index) => (
+              <ChatMessage key={`${message.id}-${index}`} message={message} />
             ))}
 
             {isTyping && <TypingIndicator />}
@@ -194,6 +235,7 @@ const App: React.FC = () => {
           {/* 消息输入 */}
           <MessageInput
             onSendMessage={handleSendMessage}
+            onFocus={autoStartSession}
             isLoading={isLoading}
             placeholder={
               selectedAgent 
@@ -222,6 +264,14 @@ const App: React.FC = () => {
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={() => setShowAgentSelector(false)}
+        />
+      )}
+
+      {/* 历史对话对话框 */}
+      {showHistory && (
+        <ConversationHistory
+          onSelectConversation={handleSelectConversation}
+          onClose={() => setShowHistory(false)}
         />
       )}
       </div>

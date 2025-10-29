@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { sessionAPI, agentAPI, SessionTimeoutConfig } from '../services/api';
+import { saveConversation, updateConversationMessages, updateConversationActivity } from '../services/storage';
 import { Message, Session } from '../types';
 
 export const useChat = () => {
@@ -9,6 +10,8 @@ export const useChat = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const currentAgentNameRef = useRef<string>(''); // 用于存储当前Agent名称
+  const processedMessageIds = useRef<Set<string>>(new Set()); // 用于跟踪已处理的消息ID
 
   // 获取可用 Agent 列表
   const { data: agentsData, isLoading: agentsLoading } = useQuery({
@@ -19,24 +22,34 @@ export const useChat = () => {
   // 确保 agents 始终是数组
   const agents = Array.isArray(agentsData) ? agentsData : [];
 
-  // 轮询获取 AI 回复 - 基于 ElizaOS 标准
-  const pollForAgentResponse = useCallback(() => {
+  // 持续轮询获取 AI 回复 - 改进版本：在对话状态下持续轮询
+  const startContinuousPolling = useCallback(() => {
     if (!currentSession) return;
 
-    let pollCount = 0;
-    const maxPolls = 30; // 最多轮询30次（90秒）
-    let lastMessageId: string | null = null; // 记录最后一条消息ID
-    let consecutiveEmptyPolls = 0; // 连续空轮询次数
-    
+    // 清除之前的轮询
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    let lastPolledTimestamp = Date.now(); // 记录上次轮询的时间戳
+
     const poll = async () => {
+      if (!currentSession) {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        return;
+      }
+
       try {
-        // 使用 after 参数获取新消息
-        const after = lastMessageId ? new Date(lastMessageId).getTime() : undefined;
-        const response = await sessionAPI.getMessages(currentSession.id, 10, undefined, after);
+        // 使用 after 参数获取新消息（基于时间戳）
+        const response = await sessionAPI.getMessages(currentSession.id, 50, undefined, lastPolledTimestamp);
         console.log('轮询获取消息:', response);
         
         // 处理不同的响应格式
-        let messagesList = [];
+        let messagesList: any[] = [];
         if (response && response.messages && Array.isArray(response.messages)) {
           messagesList = response.messages;
         } else if (Array.isArray(response)) {
@@ -44,15 +57,14 @@ export const useChat = () => {
         }
         
         if (messagesList.length > 0) {
-          // 查找最新的AI回复消息（可能在列表的任何位置）
-          let foundAgentMessage = null;
-          let latestMessageId = null;
-          let latestAgentMessageTime = 0;
+          // 查找所有AI回复消息（支持多条消息）
+          const foundAgentMessages: any[] = [];
+          let latestTimestamp = lastPolledTimestamp;
           
-          // 遍历所有消息，查找最新的AI回复
+          // 遍历所有消息，查找所有AI回复
           for (let i = 0; i < messagesList.length; i++) {
             const message = messagesList[i];
-            const messageTime = new Date(message.createdAt).getTime();
+            const messageTime = new Date(message.createdAt || message.timestamp).getTime();
             
             // 判断是否为AI回复 - 基于 ElizaOS 标准
             // 1. 检查明确的AI标识
@@ -87,104 +99,98 @@ export const useChat = () => {
               authorId: message.authorId,
               userId: currentSession.userId,
               agentId: currentSession?.agentId,
-              metadata: message.metadata,
               hasAgentFlag,
               hasAgentMetadata,
               isAgentAuthor,
               isNotUserMessage,
               isAgentMessage,
-              finalResult: isAgentMessage && isNotUserMessage
+              messageTime,
+              lastPolledTimestamp,
+              isNew: messageTime > lastPolledTimestamp
             });
             
-            if (isAgentMessage && isNotUserMessage && messageTime > latestAgentMessageTime) {
-              foundAgentMessage = message;
-              latestAgentMessageTime = messageTime;
-              console.log('找到更新的AI消息:', message);
+            if (isAgentMessage && isNotUserMessage && messageTime > lastPolledTimestamp) {
+              foundAgentMessages.push(message);
+              console.log('找到新的AI消息:', message);
             }
             
-            // 更新最新的消息ID（用于下次轮询）
-            if (!latestMessageId || messageTime > new Date(latestMessageId).getTime()) {
-              latestMessageId = message.id;
+            // 更新最新的时间戳（用于下次轮询）
+            if (messageTime > latestTimestamp) {
+              latestTimestamp = messageTime;
             }
           }
           
-          // 更新最后一条消息ID
-          lastMessageId = latestMessageId;
-          consecutiveEmptyPolls = 0; // 重置空轮询计数
-          
-          if (foundAgentMessage) {
-            console.log('AI消息详情:', foundAgentMessage);
+          // 处理找到的AI消息
+          if (foundAgentMessages.length > 0) {
+            console.log(`找到 ${foundAgentMessages.length} 条新AI消息`);
             
-            // 检查是否已经添加过这条消息
-            const messageExists = messages.some(msg => msg.id === foundAgentMessage.id);
-            console.log('消息是否已存在:', messageExists);
+            // 按时间排序，确保按正确顺序添加
+            foundAgentMessages.sort((a, b) => 
+              new Date(a.createdAt || a.timestamp).getTime() - new Date(b.createdAt || b.timestamp).getTime()
+            );
             
-            if (!messageExists) {
-              const agentMessage: Message = {
-                id: foundAgentMessage.id,
-                content: foundAgentMessage.content || foundAgentMessage.text || '收到消息',
-                role: 'agent',
-                timestamp: foundAgentMessage.timestamp || new Date(foundAgentMessage.createdAt).getTime() || Date.now(),
-                actions: foundAgentMessage.actions || [],
-                metadata: foundAgentMessage.metadata || {},
-              };
+            // 简化消息添加逻辑
+            console.log('开始处理找到的AI消息，数量:', foundAgentMessages.length);
+            
+            for (const agentMsg of foundAgentMessages) {
+              const messageId = agentMsg.id || `agent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
               
-              console.log('添加AI消息到界面:', agentMessage);
-              setMessages(prev => [...prev, agentMessage]);
-              setIsTyping(false);
-              
-              // 停止轮询
-              if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
+              // 检查是否已经处理过这个消息
+              if (!processedMessageIds.current.has(messageId)) {
+                const agentMessage: Message = {
+                  id: messageId,
+                  content: agentMsg.content || agentMsg.text || '收到消息',
+                  role: 'agent',
+                  timestamp: agentMsg.timestamp || new Date(agentMsg.createdAt).getTime() || Date.now(),
+                  actions: agentMsg.actions || [],
+                  metadata: agentMsg.metadata || {},
+                };
+                
+                console.log('添加AI消息到界面:', agentMessage);
+                
+                // 直接添加消息
+                setMessages(prev => {
+                  // 检查是否已存在
+                  const exists = prev.some(msg => msg.id === messageId);
+                  if (!exists) {
+                    return [...prev, agentMessage];
+                  }
+                  return prev;
+                });
+                
+                processedMessageIds.current.add(messageId);
+                setIsTyping(false);
               }
-              return;
             }
           }
-        } else {
-          consecutiveEmptyPolls++;
-        }
-        
-        pollCount++;
-        
-        // 动态调整轮询间隔
-        let pollInterval = 2000; // 默认2秒
-        if (consecutiveEmptyPolls < 3) {
-          pollInterval = 1000; // 前3次空轮询使用1秒间隔
-        } else if (consecutiveEmptyPolls < 10) {
-          pollInterval = 2000; // 中间使用2秒间隔
-        } else {
-          pollInterval = 3000; // 后期使用3秒间隔
-        }
-        
-        if (pollCount >= maxPolls) {
-          console.log('轮询超时，停止等待 AI 回复');
-          setIsTyping(false);
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
-        } else {
-          // 动态调整轮询间隔
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = setInterval(poll, pollInterval);
+          
+          // 更新最后轮询的时间戳
+          if (latestTimestamp > lastPolledTimestamp) {
+            lastPolledTimestamp = latestTimestamp;
           }
         }
       } catch (error) {
         console.error('轮询获取消息失败:', error);
-        setIsTyping(false);
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
-        }
+        // 出错时不停止轮询，继续尝试
       }
     };
 
-    // 立即执行一次，然后开始轮询
+    // 立即执行一次
     poll();
-    pollingIntervalRef.current = setInterval(poll, 1000); // 初始1秒轮询
-  }, [currentSession, messages]);
+    
+    // 开始持续轮询（每5秒一次）
+    pollingIntervalRef.current = setInterval(poll, 5000);
+    console.log('开始持续轮询AI回复');
+  }, [currentSession]);
+
+  // 停止轮询
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+      console.log('停止轮询');
+    }
+  }, []);
 
   // 创建会话 - 基于 ElizaOS 标准
   const createSessionMutation = useMutation({
@@ -208,7 +214,13 @@ export const useChat = () => {
     onSuccess: (session) => {
       console.log('会话创建成功:', session);
       setCurrentSession(session);
-      setMessages([]);
+      // 不立即清空消息，让消息历史加载来处理
+      
+      // 更新Agent名称引用
+      const agent = agents.find(a => a.id === session.agentId);
+      if (agent) {
+        currentAgentNameRef.current = agent.name;
+      }
     },
     onError: (error) => {
       console.error('会话创建失败:', error);
@@ -228,7 +240,7 @@ export const useChat = () => {
     onMutate: async ({ content }) => {
       // 乐观更新：立即添加用户消息
       const userMessage: Message = {
-        id: `user_${Date.now()}`,
+        id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         content,
         role: 'user',
         timestamp: Date.now(),
@@ -241,15 +253,13 @@ export const useChat = () => {
       // 等待后端处理并生成回复
       console.log('消息发送成功，等待 AI 回复...', response);
       
-      // 延迟1.5秒后开始轮询，给AI一些时间生成回复
-      setTimeout(() => {
-        pollForAgentResponse();
-      }, 1500);
+      // 轮询已经在会话创建时启动，不需要重新启动
+      // 只需要确保轮询在运行即可
     },
     onError: (error) => {
       console.error('发送消息失败:', error);
       const errorMessage: Message = {
-        id: `error_${Date.now()}`,
+        id: `error_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         content: '抱歉，发送消息时出现错误，请稍后重试。',
         role: 'agent',
         timestamp: Date.now(),
@@ -266,11 +276,14 @@ export const useChat = () => {
     enabled: !!currentSession,
   });
 
-  // 当消息历史加载时更新消息列表
+  // 当消息历史加载时更新消息列表（仅在会话初始化时）
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
   useEffect(() => {
-    if (messageHistory && messageHistory.length > 0) {
-      const formattedMessages: Message[] = messageHistory.map((msg: any) => ({
-        id: msg.id || `msg_${Date.now()}`,
+    if (messageHistory && messageHistory.length > 0 && isInitialLoad && currentSession) {
+      console.log('加载消息历史:', messageHistory);
+      const formattedMessages: Message[] = messageHistory.map((msg: any, index: number) => ({
+        id: msg.id || `msg_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
         content: msg.content || msg.text || '',
         role: msg.role || 'agent',
         timestamp: msg.timestamp || Date.now(),
@@ -278,23 +291,72 @@ export const useChat = () => {
         metadata: msg.metadata,
       }));
       setMessages(formattedMessages);
+      setIsInitialLoad(false); // 标记为已加载
+      
+      // 更新Agent名称引用
+      const agent = agents.find(a => a.id === currentSession.agentId);
+      if (agent) {
+        currentAgentNameRef.current = agent.name;
+      }
     }
-  }, [messageHistory]);
+  }, [messageHistory, currentSession, agents, isInitialLoad]);
+
+  // 调试：监控 messages 状态变化
+  useEffect(() => {
+    console.log('Messages 状态更新:', {
+      count: messages.length,
+      messages: messages.map(msg => ({
+        id: msg.id,
+        content: msg.content.substring(0, 50) + '...',
+        role: msg.role,
+        timestamp: msg.timestamp
+      }))
+    });
+  }, [messages]);
+
+  // 当消息更新时，保存到历史记录
+  useEffect(() => {
+    if (currentSession && messages.length > 0) {
+      // 更新对话消息
+      updateConversationMessages(currentSession.id, messages);
+      
+      // 更新活动时间
+      updateConversationActivity(currentSession.id);
+      
+      // 保存完整对话（包含会话信息）
+      const agentName = currentAgentNameRef.current || agents.find(a => a.id === currentSession.agentId)?.name || 'Unknown Agent';
+      saveConversation(currentSession, agentName, messages);
+    }
+  }, [messages, currentSession, agents]);
 
   // 自动滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
+  // 当会话创建时，开始持续轮询
+  useEffect(() => {
+    if (currentSession) {
+      // 延迟启动轮询，等待消息历史加载完成
+      const timer = setTimeout(() => {
+        startContinuousPolling();
+      }, 1000);
+      
+      return () => {
+        clearTimeout(timer);
+        stopPolling();
+      };
+    } else {
+      stopPolling();
+    }
+  }, [currentSession, startContinuousPolling, stopPolling]);
+
   // 清理轮询
   useEffect(() => {
     return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
+      stopPolling();
     };
-  }, []);
+  }, [stopPolling]);
 
   // 发送消息
   const sendMessage = useCallback((content: string, metadata?: Record<string, any>) => {
@@ -324,13 +386,14 @@ export const useChat = () => {
   // 结束当前会话
   const endSession = useCallback(() => {
     // 停止轮询
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
+    stopPolling();
     setCurrentSession(null);
     setMessages([]);
-  }, []);
+    // 清理已处理的消息ID
+    processedMessageIds.current.clear();
+    // 重置初始加载状态
+    setIsInitialLoad(true);
+  }, [stopPolling]);
 
   // 续期会话 - 基于 ElizaOS 标准
   const renewSession = useCallback(async () => {
@@ -378,6 +441,17 @@ export const useChat = () => {
     };
   }, [currentSession, sendHeartbeat, renewSession]);
 
+  // 加载历史对话
+  const loadConversation = useCallback((sessionId: string, historyMessages: Message[]) => {
+    // 设置消息
+    setMessages(historyMessages);
+    
+    // 更新最后活动时间
+    if (currentSession && currentSession.id === sessionId) {
+      updateConversationActivity(sessionId);
+    }
+  }, [currentSession]);
+
   return {
     // 状态
     messages,
@@ -394,6 +468,7 @@ export const useChat = () => {
     renewSession,
     sendHeartbeat,
     refetchMessages,
+    loadConversation,
     
     // 引用
     messagesEndRef,
