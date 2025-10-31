@@ -40,7 +40,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
-  const handleFormClick = (e: React.MouseEvent) => {
+  const handleFormClick = () => {
     // 点击表单区域时自动开始对话（如果还没有会话）
     if (onFocus) {
       onFocus();

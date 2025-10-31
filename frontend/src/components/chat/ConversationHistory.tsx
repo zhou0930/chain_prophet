@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ConversationHistory as ConversationHistoryType, getConversationHistory, deleteConversation, clearAllConversations } from '../services/storage';
-import { Message } from '../types';
-import { utils } from '../services/api';
+import { ConversationHistory as ConversationHistoryType, getConversationHistory, deleteConversation, clearAllConversations } from '../../services/storage';
+import { Message } from '../../types';
+import { utils } from '../../services/api';
 import { History, Trash2, X, MessageSquare, Clock } from 'lucide-react';
 
 interface ConversationHistoryProps {

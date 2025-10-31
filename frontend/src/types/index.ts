@@ -5,6 +5,13 @@ export interface Message {
   timestamp: number;
   actions?: string[];
   metadata?: Record<string, any>;
+  // Action 相关字段
+  isAction?: boolean;
+  actionName?: string;
+  actionStatus?: 'executing' | 'completed' | 'failed';
+  actionThought?: string;
+  actionResult?: any;
+  rawMessage?: any;
 }
 
 export interface Session {
