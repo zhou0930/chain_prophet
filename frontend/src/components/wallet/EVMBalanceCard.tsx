@@ -1,5 +1,5 @@
 import React from 'react';
-import { EVMBalanceResult } from '../types';
+import { EVMBalanceResult } from '../../types';
 import { Wallet, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
 
 interface EVMBalanceCardProps {

@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { sessionAPI, agentAPI, SessionTimeoutConfig } from '../services/api';
+import { saveConversation, updateConversationMessages, updateConversationActivity } from '../services/storage';
+import socketService from '../services/socket';
 import { Message, Session } from '../types';
 
 export const useChat = () => {
@@ -8,7 +10,9 @@ export const useChat = () => {
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const currentAgentNameRef = useRef<string>(''); // 用于存储当前Agent名称
+  const processedMessageIds = useRef<Set<string>>(new Set()); // 用于跟踪已处理的消息ID
+  const socketConnectedRef = useRef<boolean>(false); // 跟踪 Socket 连接状态
 
   // 获取可用 Agent 列表
   const { data: agentsData, isLoading: agentsLoading } = useQuery({
@@ -19,172 +23,92 @@ export const useChat = () => {
   // 确保 agents 始终是数组
   const agents = Array.isArray(agentsData) ? agentsData : [];
 
-  // 轮询获取 AI 回复 - 基于 ElizaOS 标准
-  const pollForAgentResponse = useCallback(() => {
-    if (!currentSession) return;
+  // 断开 Socket.IO（先定义，供 connectSocket 使用）
+  const disconnectSocket = useCallback(() => {
+    if (socketConnectedRef.current) {
+      console.log('断开 Socket.IO 连接');
+      socketService.disconnect();
+      socketConnectedRef.current = false;
+    }
+  }, []);
 
-    let pollCount = 0;
-    const maxPolls = 30; // 最多轮询30次（90秒）
-    let lastMessageId: string | null = null; // 记录最后一条消息ID
-    let consecutiveEmptyPolls = 0; // 连续空轮询次数
-    
-    const poll = async () => {
-      try {
-        // 使用 after 参数获取新消息
-        const after = lastMessageId ? new Date(lastMessageId).getTime() : undefined;
-        const response = await sessionAPI.getMessages(currentSession.id, 10, undefined, after);
-        console.log('轮询获取消息:', response);
+  // 连接 Socket.IO
+  const connectSocket = useCallback(async (session: Session) => {
+    if (socketConnectedRef.current && socketService.getCurrentSessionId() === session.id) {
+      console.log('Socket 已连接到该会话');
+      return;
+    }
+
+    try {
+      console.log('正在连接 Socket.IO 到会话:', session.id);
+      // 使用默认 serverId（00000000-0000-0000-0000-000000000000）作为 serverId
+      // 这是 ElizaOS 的标准默认服务器 ID
+      await socketService.connect(session.id, session.agentId, session.userId);
+      socketConnectedRef.current = true;
+
+      // 监听消息广播
+      socketService.onMessageBroadcast((message: Message) => {
+        console.log('[Socket.IO] 收到 AI 消息:', message);
         
-        // 处理不同的响应格式
-        let messagesList = [];
-        if (response && response.messages && Array.isArray(response.messages)) {
-          messagesList = response.messages;
-        } else if (Array.isArray(response)) {
-          messagesList = response;
-        }
-        
-        if (messagesList.length > 0) {
-          // 查找最新的AI回复消息（可能在列表的任何位置）
-          let foundAgentMessage = null;
-          let latestMessageId = null;
-          let latestAgentMessageTime = 0;
-          
-          // 遍历所有消息，查找最新的AI回复
-          for (let i = 0; i < messagesList.length; i++) {
-            const message = messagesList[i];
-            const messageTime = new Date(message.createdAt).getTime();
-            
-            // 判断是否为AI回复 - 基于 ElizaOS 标准
-            // 1. 检查明确的AI标识
-            const hasAgentFlag = message.isAgent === true || 
-                                message.role === 'agent' || 
-                                message.role === 'assistant';
-            
-            // 2. 检查metadata中的AI标识
-            const hasAgentMetadata = message.metadata && (
-              message.metadata.agent_id || 
-              message.metadata.agentName ||
-              message.metadata.agent_id === currentSession?.agentId
-            );
-            
-            // 3. 检查authorId是否为AI的ID（如果已知）
-            const isAgentAuthor = message.authorId && 
-                                 message.authorId !== currentSession.userId &&
-                                 (message.authorId === currentSession?.agentId || 
-                                  message.authorId === '51313af0-f433-02b3-81a6-f01b84929d4e'); // 已知的AI ID
-            
-            // 4. 确保不是用户自己的消息
-            const isNotUserMessage = !message.authorId || message.authorId !== currentSession.userId;
-            
-            // 综合判断：必须有明确的AI标识，且不是用户消息
-            const isAgentMessage = (hasAgentFlag || hasAgentMetadata || isAgentAuthor) && isNotUserMessage;
-            
-            console.log('消息分析:', {
-              id: message.id,
-              content: message.content?.substring(0, 50) + '...',
-              isAgent: message.isAgent,
-              role: message.role,
-              authorId: message.authorId,
-              userId: currentSession.userId,
-              agentId: currentSession?.agentId,
-              metadata: message.metadata,
-              hasAgentFlag,
-              hasAgentMetadata,
-              isAgentAuthor,
-              isNotUserMessage,
-              isAgentMessage,
-              finalResult: isAgentMessage && isNotUserMessage
-            });
-            
-            if (isAgentMessage && isNotUserMessage && messageTime > latestAgentMessageTime) {
-              foundAgentMessage = message;
-              latestAgentMessageTime = messageTime;
-              console.log('找到更新的AI消息:', message);
+        // 检查是否已处理过
+        if (!processedMessageIds.current.has(message.id)) {
+          setMessages(prev => {
+            const exists = prev.some(msg => msg.id === message.id);
+            if (!exists) {
+              return [...prev, message];
             }
-            
-            // 更新最新的消息ID（用于下次轮询）
-            if (!latestMessageId || messageTime > new Date(latestMessageId).getTime()) {
-              latestMessageId = message.id;
-            }
-          }
+            return prev;
+          });
           
-          // 更新最后一条消息ID
-          lastMessageId = latestMessageId;
-          consecutiveEmptyPolls = 0; // 重置空轮询计数
-          
-          if (foundAgentMessage) {
-            console.log('AI消息详情:', foundAgentMessage);
-            
-            // 检查是否已经添加过这条消息
-            const messageExists = messages.some(msg => msg.id === foundAgentMessage.id);
-            console.log('消息是否已存在:', messageExists);
-            
-            if (!messageExists) {
-              const agentMessage: Message = {
-                id: foundAgentMessage.id,
-                content: foundAgentMessage.content || foundAgentMessage.text || '收到消息',
-                role: 'agent',
-                timestamp: foundAgentMessage.timestamp || new Date(foundAgentMessage.createdAt).getTime() || Date.now(),
-                actions: foundAgentMessage.actions || [],
-                metadata: foundAgentMessage.metadata || {},
-              };
-              
-              console.log('添加AI消息到界面:', agentMessage);
-              setMessages(prev => [...prev, agentMessage]);
-              setIsTyping(false);
-              
-              // 停止轮询
-              if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
-              }
-              return;
-            }
-          }
-        } else {
-          consecutiveEmptyPolls++;
-        }
-        
-        pollCount++;
-        
-        // 动态调整轮询间隔
-        let pollInterval = 2000; // 默认2秒
-        if (consecutiveEmptyPolls < 3) {
-          pollInterval = 1000; // 前3次空轮询使用1秒间隔
-        } else if (consecutiveEmptyPolls < 10) {
-          pollInterval = 2000; // 中间使用2秒间隔
-        } else {
-          pollInterval = 3000; // 后期使用3秒间隔
-        }
-        
-        if (pollCount >= maxPolls) {
-          console.log('轮询超时，停止等待 AI 回复');
+          processedMessageIds.current.add(message.id);
           setIsTyping(false);
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
-        } else {
-          // 动态调整轮询间隔
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = setInterval(poll, pollInterval);
-          }
         }
-      } catch (error) {
-        console.error('轮询获取消息失败:', error);
-        setIsTyping(false);
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
-        }
-      }
-    };
+      });
 
-    // 立即执行一次，然后开始轮询
-    poll();
-    pollingIntervalRef.current = setInterval(poll, 1000); // 初始1秒轮询
-  }, [currentSession, messages]);
+      // 监听消息处理完成
+      socketService.onMessageComplete(() => {
+        console.log('[Socket.IO] 消息处理完成');
+        setIsTyping(false);
+      });
+
+      // 监听会话过期警告
+      socketService.onSessionExpirationWarning((data) => {
+        console.warn('[Socket.IO] 会话即将过期:', data);
+        // 可以在这里显示警告提示
+      });
+
+      // 监听会话过期
+      socketService.onSessionExpired((data) => {
+        console.error('[Socket.IO] 会话已过期:', data);
+        // 会话过期时断开连接并清理状态
+        disconnectSocket();
+        setCurrentSession(null);
+        setMessages([]);
+        processedMessageIds.current.clear();
+        setIsInitialLoad(true);
+      });
+
+      // 监听会话续期
+      socketService.onSessionRenewed((data) => {
+        console.log('[Socket.IO] 会话已续期:', data);
+      });
+
+      // 监听连接建立
+      socketService.onConnectionEstablished((data) => {
+        console.log('[Socket.IO] 连接已建立:', data);
+      });
+
+      // 监听错误
+      socketService.onError((error) => {
+        console.error('[Socket.IO] 发生错误:', error);
+      });
+
+      console.log('Socket.IO 连接成功');
+    } catch (error) {
+      console.error('Socket.IO 连接失败:', error);
+      socketConnectedRef.current = false;
+    }
+  }, [disconnectSocket]);
 
   // 创建会话 - 基于 ElizaOS 标准
   const createSessionMutation = useMutation({
@@ -205,30 +129,61 @@ export const useChat = () => {
       
       return sessionAPI.createSession(agentId, userId, timeoutConfig || defaultTimeoutConfig);
     },
-    onSuccess: (session) => {
+    onSuccess: async (session) => {
       console.log('会话创建成功:', session);
       setCurrentSession(session);
-      setMessages([]);
+      // 不立即清空消息，让消息历史加载来处理
+      
+      // 更新Agent名称引用
+      const agent = agents.find(a => a.id === session.agentId);
+      if (agent) {
+        currentAgentNameRef.current = agent.name;
+      }
+
+      // 连接 Socket.IO
+      // 延迟连接 Socket，确保会话信息已设置
+      setTimeout(() => {
+        connectSocket(session);
+      }, 500);
     },
     onError: (error) => {
       console.error('会话创建失败:', error);
     },
   });
 
-  // 发送消息
+  // 发送消息（使用 Socket.IO）
   const sendMessageMutation = useMutation({
-    mutationFn: ({ sessionId, content, metadata }: { 
+    mutationFn: async ({ sessionId, content, metadata }: { 
       sessionId: string; 
       content: string; 
       metadata?: Record<string, any> 
     }) => {
-      console.log('发送消息:', { sessionId, content, metadata });
-      return sessionAPI.sendMessage(sessionId, content, metadata);
+      console.log('通过 Socket.IO 发送消息:', { sessionId, content, metadata });
+      
+      // 检查 Socket 连接状态
+      if (!socketService.isSocketConnected()) {
+        console.warn('Socket 未连接，尝试使用 REST API 发送消息');
+        // 如果 Socket 未连接，回退到 REST API
+        return await sessionAPI.sendMessage(sessionId, content, metadata);
+      }
+
+      // 使用 Socket.IO 发送消息
+      socketService.sendMessage(content, metadata);
+      
+      // 返回一个成功的响应（Socket.IO 是异步的，不需要等待响应）
+      return {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        content,
+        text: content,
+        timestamp: Date.now(),
+        metadata: metadata || {},
+        actions: [],
+      };
     },
     onMutate: async ({ content }) => {
       // 乐观更新：立即添加用户消息
       const userMessage: Message = {
-        id: `user_${Date.now()}`,
+        id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         content,
         role: 'user',
         timestamp: Date.now(),
@@ -237,19 +192,13 @@ export const useChat = () => {
       setIsTyping(true);
     },
     onSuccess: (response) => {
-      // 消息发送成功，但不立即添加 AI 回复
-      // 等待后端处理并生成回复
+      // 消息发送成功，等待 Socket.IO 接收 AI 回复
       console.log('消息发送成功，等待 AI 回复...', response);
-      
-      // 延迟1.5秒后开始轮询，给AI一些时间生成回复
-      setTimeout(() => {
-        pollForAgentResponse();
-      }, 1500);
     },
     onError: (error) => {
       console.error('发送消息失败:', error);
       const errorMessage: Message = {
-        id: `error_${Date.now()}`,
+        id: `error_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         content: '抱歉，发送消息时出现错误，请稍后重试。',
         role: 'agent',
         timestamp: Date.now(),
@@ -266,11 +215,14 @@ export const useChat = () => {
     enabled: !!currentSession,
   });
 
-  // 当消息历史加载时更新消息列表
+  // 当消息历史加载时更新消息列表（仅在会话初始化时）
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
   useEffect(() => {
-    if (messageHistory && messageHistory.length > 0) {
-      const formattedMessages: Message[] = messageHistory.map((msg: any) => ({
-        id: msg.id || `msg_${Date.now()}`,
+    if (messageHistory && messageHistory.length > 0 && isInitialLoad && currentSession) {
+      console.log('加载消息历史:', messageHistory);
+      const formattedMessages: Message[] = messageHistory.map((msg: any, index: number) => ({
+        id: msg.id || `msg_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
         content: msg.content || msg.text || '',
         role: msg.role || 'agent',
         timestamp: msg.timestamp || Date.now(),
@@ -278,23 +230,69 @@ export const useChat = () => {
         metadata: msg.metadata,
       }));
       setMessages(formattedMessages);
+      setIsInitialLoad(false); // 标记为已加载
+      
+      // 更新Agent名称引用
+      const agent = agents.find(a => a.id === currentSession.agentId);
+      if (agent) {
+        currentAgentNameRef.current = agent.name;
+      }
     }
-  }, [messageHistory]);
+  }, [messageHistory, currentSession, agents, isInitialLoad]);
+
+  // 调试：监控 messages 状态变化
+  useEffect(() => {
+    console.log('Messages 状态更新:', {
+      count: messages.length,
+      messages: messages.map(msg => ({
+        id: msg.id,
+        content: msg.content.substring(0, 50) + '...',
+        role: msg.role,
+        timestamp: msg.timestamp
+      }))
+    });
+  }, [messages]);
+
+  // 当消息更新时，保存到历史记录
+  useEffect(() => {
+    if (currentSession && messages.length > 0) {
+      // 更新对话消息
+      updateConversationMessages(currentSession.id, messages);
+      
+      // 更新活动时间
+      updateConversationActivity(currentSession.id);
+      
+      // 保存完整对话（包含会话信息）
+      const agentName = currentAgentNameRef.current || agents.find(a => a.id === currentSession.agentId)?.name || 'Unknown Agent';
+      saveConversation(currentSession, agentName, messages);
+    }
+  }, [messages, currentSession, agents]);
 
   // 自动滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // 清理轮询
+  // 当会话创建时，连接 Socket.IO
   useEffect(() => {
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-  }, []);
+    if (currentSession && !socketConnectedRef.current) {
+      // 延迟连接，等待消息历史加载完成
+      const timer = setTimeout(() => {
+        connectSocket(currentSession);
+      }, 1000);
+      
+      return () => {
+        clearTimeout(timer);
+      };
+    } else if (!currentSession) {
+      // 如果没有会话，断开 Socket 连接
+      disconnectSocket();
+    }
+  }, [currentSession, connectSocket, disconnectSocket]);
+
+  // 注意：移除了组件卸载时断开连接的逻辑
+  // 这样即使路由切换，对话也会在后台保持连接，实现静默状态
+  // 只有在用户主动结束会话或会话过期时才会断开连接
 
   // 发送消息
   const sendMessage = useCallback((content: string, metadata?: Record<string, any>) => {
@@ -323,14 +321,15 @@ export const useChat = () => {
 
   // 结束当前会话
   const endSession = useCallback(() => {
-    // 停止轮询
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
+    // 断开 Socket 连接
+    disconnectSocket();
     setCurrentSession(null);
     setMessages([]);
-  }, []);
+    // 清理已处理的消息ID
+    processedMessageIds.current.clear();
+    // 重置初始加载状态
+    setIsInitialLoad(true);
+  }, [disconnectSocket]);
 
   // 续期会话 - 基于 ElizaOS 标准
   const renewSession = useCallback(async () => {
@@ -378,6 +377,17 @@ export const useChat = () => {
     };
   }, [currentSession, sendHeartbeat, renewSession]);
 
+  // 加载历史对话
+  const loadConversation = useCallback((sessionId: string, historyMessages: Message[]) => {
+    // 设置消息
+    setMessages(historyMessages);
+    
+    // 更新最后活动时间
+    if (currentSession && currentSession.id === sessionId) {
+      updateConversationActivity(sessionId);
+    }
+  }, [currentSession]);
+
   return {
     // 状态
     messages,
@@ -394,6 +404,7 @@ export const useChat = () => {
     renewSession,
     sendHeartbeat,
     refetchMessages,
+    loadConversation,
     
     // 引用
     messagesEndRef,

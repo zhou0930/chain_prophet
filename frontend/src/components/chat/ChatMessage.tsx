@@ -1,6 +1,6 @@
 import React from 'react';
-import { Message } from '../types';
-import { utils } from '../services/api';
+import { Message } from '../../types';
+import { utils } from '../../services/api';
 import { Bot, User, Zap } from 'lucide-react';
 
 interface ChatMessageProps {
@@ -9,8 +9,13 @@ interface ChatMessageProps {
 
 const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const isUser = message.role === 'user';
-  const isAgent = message.role === 'agent';
 
+  // 忽略 action 相关的消息
+  if (message.isAction) {
+    return null;
+  }
+
+  // 普通消息的渲染
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
       <div className={`flex max-w-3xl ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start space-x-2`}>
