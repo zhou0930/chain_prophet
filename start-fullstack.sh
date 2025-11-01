@@ -19,7 +19,7 @@ fi
 # 函数：启动后端
 start_backend() {
     echo "🔧 启动后端服务..."
-    cd /home/mitu/chain_prophet
+    #cd /mnt/f/Eliza/chain_prophet   #换成自己的项目路径
     bun run dev &
     BACKEND_PID=$!
     echo "✅ 后端服务已启动 (PID: $BACKEND_PID)"
@@ -28,7 +28,7 @@ start_backend() {
 # 函数：启动前端
 start_frontend() {
     echo "🎨 启动前端服务..."
-    cd /home/mitu/chain_prophet/frontend
+    cd frontend  
     
     # 检查前端依赖
     if [ ! -d "node_modules" ]; then
