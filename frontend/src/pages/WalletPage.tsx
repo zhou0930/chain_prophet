@@ -11,6 +11,7 @@ type TimeRange = 'day' | 'week' | 'month' | 'year' | 'all';
 const WalletPage: React.FC = () => {
   const {
     address,
+    myWalletAddress,
     balance,
     transactions,
     isLoading,
@@ -21,12 +22,15 @@ const WalletPage: React.FC = () => {
     fetchTransactions,
   } = useWallet();
 
-  const [copied, setCopied] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const [customAddress, setCustomAddress] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState<TabType>('transactions');
   const [timeRange, setTimeRange] = useState<TimeRange>('week');
   const itemsPerPage = 5;
+
+  // 判断当前地址是否与我的钱包地址相同
+  const isCurrentAddressMyWallet = address && myWalletAddress && address.toLowerCase() === myWalletAddress.toLowerCase();
 
   // 分页计算
   const totalPages = Math.ceil(transactions.length / itemsPerPage);
@@ -49,15 +53,13 @@ const WalletPage: React.FC = () => {
   }, [address]);
 
   // 复制地址
-  const handleCopyAddress = async () => {
-    if (address) {
-      try {
-        await navigator.clipboard.writeText(address);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch (err) {
-        console.error('复制失败:', err);
-      }
+  const handleCopyAddress = async (addr: string) => {
+    try {
+      await navigator.clipboard.writeText(addr);
+      setCopiedAddress(addr);
+      setTimeout(() => setCopiedAddress(null), 2000);
+    } catch (err) {
+      console.error('复制失败:', err);
     }
   };
 
@@ -103,6 +105,14 @@ const WalletPage: React.FC = () => {
     return { startTime, endTime };
   }, [timeRange]);
 
+  // 获取本地时区的日期字符串（YYYY-MM-DD格式）
+  const getLocalDateString = useCallback((date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
   // 资产走势数据 - 按天聚合
   const chartData = useMemo(() => {
     if (!address || !balance || activeTab !== 'trend') {
@@ -113,14 +123,16 @@ const WalletPage: React.FC = () => {
     // 如果没有交易记录，但需要显示今天的数据，仍然返回数据
     if (storedTransactions.length === 0) {
       const { startTime, endTime } = getTimeRangeBounds();
-      const todayKey = new Date().toISOString().split('T')[0];
-      const todayStart = new Date(todayKey).getTime();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayKey = getLocalDateString(today);
+      const todayStart = today.getTime();
       
       // 如果今天在时间范围内，返回今天的当前余额
       if (todayStart >= startTime && todayStart <= endTime) {
         return [{
           dayKey: todayKey,
-          time: new Date(todayKey + 'T00:00:00').toLocaleDateString('zh-CN', {
+          time: today.toLocaleDateString('zh-CN', {
             month: 'short',
             day: 'numeric',
           }),
@@ -142,26 +154,35 @@ const WalletPage: React.FC = () => {
     const { startTime, endTime } = getTimeRangeBounds();
     const filteredHistory = history.filter(point => point.timestamp >= startTime && point.timestamp <= endTime);
 
-    if (filteredHistory.length === 0) {
-      return [];
-    }
-
     // 按天聚合数据
     const dailyData = new Map<string, { timestamp: number; balance: number; transactions: Transaction[] }>();
     
-    // 初始化每天的数据
+    // 初始化每天的数据（包括今天）
     const startDate = new Date(startTime);
     const endDate = new Date(endTime);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayKey = getLocalDateString(today);
+    
+    // 确保结束日期至少是今天（如果时间范围不包括今天，也要包含今天）
+    const finalEndDate = endDate > today ? endDate : today;
+    
     const currentDate = new Date(startDate);
     currentDate.setHours(0, 0, 0, 0);
 
-    while (currentDate <= endDate) {
-      const dayKey = currentDate.toISOString().split('T')[0];
-      const dayEndTime = new Date(currentDate);
-      dayEndTime.setHours(23, 59, 59, 999);
+    while (currentDate <= finalEndDate) {
+      const dayKey = getLocalDateString(currentDate);
+      const isToday = dayKey === todayKey;
+      
+      // 如果是今天，使用当前时间作为时间戳；否则使用当天结束时间
+      const timestamp = isToday ? Date.now() : new Date(currentDate.getTime() + 86400000 - 1).getTime();
+      
+      // 如果是今天，使用当前余额；否则初始化为0
+      const initialBalance = isToday ? parseFloat(balance) : 0;
+      
       dailyData.set(dayKey, {
-        timestamp: dayEndTime.getTime(),
-        balance: 0,
+        timestamp,
+        balance: initialBalance,
         transactions: [],
       });
       currentDate.setDate(currentDate.getDate() + 1);
@@ -169,30 +190,37 @@ const WalletPage: React.FC = () => {
 
     // 找出每天的最后一条记录（最接近23:59的）
     // 优化：先按时间排序，然后遍历一次即可
-    filteredHistory.sort((a, b) => a.timestamp - b.timestamp);
-    
-    filteredHistory.forEach(point => {
-      const pointDate = new Date(point.timestamp);
-      const dayKey = pointDate.toISOString().split('T')[0];
+    if (filteredHistory.length > 0) {
+      filteredHistory.sort((a, b) => a.timestamp - b.timestamp);
       
-      if (dailyData.has(dayKey)) {
-        const dayData = dailyData.get(dayKey)!;
-        const pointBalance = parseFloat(point.balance);
-        // 更新为该天最接近23:59的记录（取时间最大的）
-        // 如果余额为0，也更新（可能确实是0，或者是历史计算的问题）
-        if (point.timestamp > dayData.timestamp || (dayData.balance === 0 && pointBalance > 0)) {
-          dayData.timestamp = point.timestamp;
-          dayData.balance = pointBalance;
+      filteredHistory.forEach(point => {
+        const pointDate = new Date(point.timestamp);
+        const dayKey = getLocalDateString(pointDate);
+        
+        if (dailyData.has(dayKey)) {
+          const dayData = dailyData.get(dayKey)!;
+          const pointBalance = parseFloat(point.balance);
+          // 更新为该天最接近23:59的记录（取时间最大的）
+          // 如果余额为0，也更新（可能确实是0，或者是历史计算的问题）
+          // 但如果是今天，不要覆盖已经设置的当前余额
+          const isToday = dayKey === todayKey;
+          if (point.timestamp > dayData.timestamp || (dayData.balance === 0 && pointBalance > 0 && !isToday)) {
+            // 如果不是今天，或者今天的余额还是初始值，才更新
+            if (!isToday || dayData.balance === parseFloat(balance)) {
+              dayData.timestamp = point.timestamp;
+              dayData.balance = pointBalance;
+            }
+          }
         }
-      }
-    });
+      });
+    }
 
     // 找出每天对应的交易记录（优化：只在需要的日期范围内查找）
     storedTransactions.forEach(tx => {
       const txTime = tx.timestamp * 1000;
       if (txTime >= startTime && txTime <= endTime) {
         const txDate = new Date(txTime);
-        const dayKey = txDate.toISOString().split('T')[0];
+        const dayKey = getLocalDateString(txDate);
         
         if (dailyData.has(dayKey)) {
           dailyData.get(dayKey)!.transactions.push(tx);
@@ -201,10 +229,19 @@ const WalletPage: React.FC = () => {
     });
 
     // 填充没有余额的日期：使用前一天的余额或当前余额
-    const todayKey = new Date().toISOString().split('T')[0];
     const sortedDailyEntries = Array.from(dailyData.entries()).sort((a, b) => a[0].localeCompare(b[0]));
     
     sortedDailyEntries.forEach(([dayKey, dayData]) => {
+      const isToday = dayKey === todayKey;
+      
+      // 如果是今天，确保使用当前余额和当前时间戳
+      if (isToday) {
+        dayData.balance = parseFloat(balance);
+        dayData.timestamp = Date.now();
+        return;
+      }
+      
+      // 对于其他日期，如果没有余额，使用前一天的余额
       if (dayData.balance === 0) {
         const currentIndex = sortedDailyEntries.findIndex(([key]) => key === dayKey);
         
@@ -213,15 +250,7 @@ const WalletPage: React.FC = () => {
           const prevBalance = sortedDailyEntries[currentIndex - 1][1].balance;
           if (prevBalance > 0) {
             dayData.balance = prevBalance;
-          } else if (dayKey === todayKey) {
-            // 如果前一天也是0且是今天，使用当前余额
-            dayData.balance = parseFloat(balance);
-            dayData.timestamp = Date.now();
           }
-        } else if (dayKey === todayKey) {
-          // 如果是第一天且是今天，使用当前余额
-          dayData.balance = parseFloat(balance);
-          dayData.timestamp = Date.now();
         }
       }
     });
@@ -245,31 +274,78 @@ const WalletPage: React.FC = () => {
           return;
         }
         
-        // 过滤：只保留有余额或有交易的日期（或者是在时间范围内的日期）
-        // 如果是今天，即使没有交易也显示
-        const isToday = dayKey === new Date().toISOString().split('T')[0];
-        if (data.balance > 0 || data.transactions.length > 0 || isToday) {
+        // 过滤：只保留有余额或有交易的日期
+        // 如果是今天，无论是否有交易都显示
+        const isToday = dayKey === todayKey;
+        
+        // 对于今天，总是显示（使用当前余额）
+        // 对于其他日期，至少要有余额或有交易
+        if (isToday || data.balance > 0 || data.transactions.length > 0) {
           seenDays.add(dayKey);
-          // 确保余额不为0，如果是今天且没有数据，使用当前余额
-          const finalBalance = isToday && data.balance === 0 && data.transactions.length === 0 
-            ? parseFloat(balance) 
-            : data.balance;
+          
+          // 确保今天的余额使用当前余额
+          const finalBalance = isToday ? parseFloat(balance) : data.balance;
+          const finalTimestamp = isToday ? Date.now() : data.timestamp;
+          
+          // 调试日志
+          if (isToday) {
+            console.log('[资产走势] 添加今天的数据:', {
+              dayKey,
+              balance: finalBalance,
+              timestamp: finalTimestamp,
+              currentBalance: balance
+            });
+          }
+          
+          // 解析日期字符串为本地日期对象用于显示
+          const [year, month, day] = dayKey.split('-').map(Number);
+          const displayDate = new Date(year, month - 1, day);
           
           result.push({
             dayKey,
-            time: new Date(dayKey + 'T00:00:00').toLocaleDateString('zh-CN', {
+            time: displayDate.toLocaleDateString('zh-CN', {
               month: 'short',
               day: 'numeric',
             }),
-            timestamp: data.timestamp,
+            timestamp: finalTimestamp,
             balance: finalBalance,
             transactions: data.transactions.sort((a, b) => b.timestamp - a.timestamp), // 按时间倒序
           });
         }
       });
 
+    // 调试日志：检查是否包含今天
+    const hasToday = result.some(item => item.dayKey === todayKey);
+    if (!hasToday && dailyData.has(todayKey)) {
+      console.warn('[资产走势] 今天的数据没有被添加到结果中，强制添加');
+      const todayData = dailyData.get(todayKey)!;
+      // 解析今天日期字符串为本地日期对象用于显示
+      const [year, month, day] = todayKey.split('-').map(Number);
+      const displayDate = new Date(year, month - 1, day);
+      
+      result.push({
+        dayKey: todayKey,
+        time: displayDate.toLocaleDateString('zh-CN', {
+          month: 'short',
+          day: 'numeric',
+        }),
+        timestamp: Date.now(),
+        balance: parseFloat(balance),
+        transactions: todayData.transactions,
+      });
+      // 重新排序
+      result.sort((a, b) => a.timestamp - b.timestamp);
+    }
+
+    console.log('[资产走势] 最终结果:', {
+      total: result.length,
+      hasToday: result.some(item => item.dayKey === todayKey),
+      todayKey,
+      lastItem: result[result.length - 1]
+    });
+
     return result;
-  }, [address, balance, timeRange, activeTab, getTimeRangeBounds]);
+  }, [address, balance, timeRange, activeTab, getTimeRangeBounds, getLocalDateString]);
 
   // 统计数据
   const trendStats = useMemo(() => {
@@ -356,29 +432,61 @@ const WalletPage: React.FC = () => {
               <h2 className="text-lg font-semibold text-secondary-900">钱包地址</h2>
             </div>
             
-            {address ? (
-              <div>
-                <div className="bg-secondary-50 rounded-lg p-3 mb-3">
-                  <p className="text-sm font-mono text-secondary-700 break-all">
-                    {address}
-                  </p>
+            {myWalletAddress ? (
+              <div className="space-y-4">
+                {/* 我的钱包地址 */}
+                <div>
+                  <p className="text-xs text-secondary-500 mb-2">我的钱包地址</p>
+                  <div className="bg-secondary-50 rounded-lg p-3 mb-2">
+                    <p className="text-sm font-mono text-secondary-700 break-all">
+                      {myWalletAddress}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleCopyAddress(myWalletAddress)}
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-secondary-100 hover:bg-secondary-200 rounded-lg transition-colors text-sm text-secondary-700"
+                  >
+                    {copiedAddress === myWalletAddress ? (
+                      <>
+                        <CheckCircle size={16} />
+                        <span>已复制</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={16} />
+                        <span>复制地址</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-                <button
-                  onClick={handleCopyAddress}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-secondary-100 hover:bg-secondary-200 rounded-lg transition-colors text-sm text-secondary-700"
-                >
-                  {copied ? (
-                    <>
-                      <CheckCircle size={16} />
-                      <span>已复制</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={16} />
-                      <span>复制地址</span>
-                    </>
-                  )}
-                </button>
+
+                {/* 当前钱包地址（仅在不同于我的钱包地址时显示） */}
+                {!isCurrentAddressMyWallet && address && (
+                  <div>
+                    <p className="text-xs text-secondary-500 mb-2">当前钱包地址</p>
+                    <div className="bg-blue-50 rounded-lg p-3 mb-2">
+                      <p className="text-sm font-mono text-secondary-700 break-all">
+                        {address}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleCopyAddress(address)}
+                      className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors text-sm text-secondary-700"
+                    >
+                      {copiedAddress === address ? (
+                        <>
+                          <CheckCircle size={16} />
+                          <span>已复制</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={16} />
+                          <span>复制地址</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-secondary-500 text-sm">

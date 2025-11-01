@@ -8,6 +8,9 @@
 - 💰 EVM 钱包余额查询
 - 🔐 支持私钥推导地址查询
 - 🌐 多区块链网络支持
+- 🛍️ NFT 市场上架、交易功能
+- 🔒 NFT 质押和奖励领取
+- 💰 NFT 借贷市场
 - 📱 响应式设计
 - ⚡ 实时消息传递
 - 🎨 现代化 UI 界面
@@ -49,6 +52,18 @@ cp env.example .env
 VITE_API_BASE_URL=http://localhost:3000
 VITE_APP_NAME=Chain Prophet
 VITE_APP_VERSION=1.0.0
+
+# Web3 钱包配置
+VITE_WALLET_PRIVATE_KEY=your_private_key_here
+VITE_SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/443ab1c362d646dcaa353c5b653c8173
+
+# NFT 合约地址（可选，部署合约后配置）
+VITE_NFT_MARKETPLACE_ADDRESS=0x0000000000000000000000000000000000000000
+VITE_NFT_STAKING_ADDRESS=0x0000000000000000000000000000000000000000
+VITE_NFT_LOAN_ADDRESS=0x0000000000000000000000000000000000000000
+
+# Etherscan API Key（可选）
+VITE_ETHERSCAN_API_KEY=
 ```
 
 ### 3. 启动开发服务器
@@ -106,6 +121,34 @@ pnpm build
 - `check balance [地址]`
 - `钱包余额 [地址]`
 - `根据私钥查询余额 [私钥]`
+
+### NFT 市场功能
+
+#### 上架 NFT
+1. 进入 **NFT 市场** 页面
+2. 点击 **市场交易** 标签
+3. 输入 Token ID 和价格
+4. 点击 **上架** 按钮
+
+#### 购买 NFT
+1. 进入 **NFT 市场** 页面
+2. 点击 **市场交易** 标签
+3. 输入 Token ID 和价格
+4. 点击 **购买** 按钮
+
+#### 质押 NFT
+1. 进入 **NFT 市场** 页面
+2. 点击 **质押** 标签
+3. 输入 Token ID
+4. 点击 **质押** 按钮
+
+#### 创建借贷
+1. 进入 **NFT 市场** 页面
+2. 点击 **借贷** 标签
+3. 输入 Token ID、借贷金额和期限
+4. 点击 **创建借贷** 按钮
+
+> 📚 详细的 NFT 市场配置说明请参考 [NFT_MARKETPLACE_SETUP.md](./NFT_MARKETPLACE_SETUP.md)
 
 ## API 接口
 
@@ -196,6 +239,16 @@ frontend/
 3. **Agent 无响应**
    - 检查会话状态
    - 尝试重新创建会话
+
+4. **NFT 市场功能不可用**
+   - 检查是否配置了私钥
+   - 检查合约地址是否正确
+   - 参考 [NFT_MARKETPLACE_SETUP.md](./NFT_MARKETPLACE_SETUP.md) 进行配置
+
+## 相关文档
+
+- [钱包配置说明](./WALLET_SETUP.md) - 如何配置钱包私钥
+- [NFT 市场配置说明](./NFT_MARKETPLACE_SETUP.md) - NFT 功能的详细配置指南
 
 ## 贡献
 

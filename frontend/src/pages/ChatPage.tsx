@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useChat } from '../hooks/useChat';
 import { useEVM } from '../hooks/useEVM';
-import { Agent } from '../types';
+import { Agent, Message, Session } from '../types';
 import ChatHeader from '../components/chat/ChatHeader';
 import ChatMessage from '../components/chat/ChatMessage';
 import TypingIndicator from '../components/chat/TypingIndicator';
@@ -9,12 +8,23 @@ import MessageInput from '../components/chat/MessageInput';
 import EVMBalanceCard from '../components/wallet/EVMBalanceCard';
 import ConversationHistory from '../components/chat/ConversationHistory';
 import { MessageCircle } from 'lucide-react';
+import { RefObject } from 'react';
 
 interface ChatPageProps {
   selectedAgent: Agent | null;
   agents: Agent[];
   agentsLoading: boolean;
   onSelectAgent: (agent: Agent) => void;
+  messages: Message[];
+  currentSession: Session | null;
+  isTyping: boolean;
+  isLoading: boolean;
+  sendMessage: (content: string, metadata?: Record<string, any>) => void;
+  startNewSession: (agentId: string, userId?: string, timeoutConfig?: any) => void;
+  endSession: () => void;
+  sendHeartbeat: () => void;
+  loadConversation: (sessionId: string, historyMessages: Message[]) => void;
+  messagesEndRef: RefObject<HTMLDivElement>;
 }
 
 const ChatPage: React.FC<ChatPageProps> = ({
@@ -22,19 +32,17 @@ const ChatPage: React.FC<ChatPageProps> = ({
   agents,
   agentsLoading,
   onSelectAgent,
+  messages,
+  currentSession,
+  isTyping,
+  isLoading,
+  sendMessage,
+  startNewSession,
+  endSession,
+  sendHeartbeat,
+  loadConversation,
+  messagesEndRef,
 }) => {
-  const {
-    messages,
-    currentSession,
-    isTyping,
-    isLoading,
-    sendMessage,
-    startNewSession,
-    endSession,
-    sendHeartbeat,
-    loadConversation,
-    messagesEndRef,
-  } = useChat();
 
   const {
     balanceResult,

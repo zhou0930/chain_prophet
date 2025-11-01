@@ -18,7 +18,7 @@ const publicClient = createPublicClient({
 export const evmBalanceAction: Action = {
   name: 'EVM_BALANCE',
   similes: ['CHECK_BALANCE', 'QUERY_BALANCE', 'WALLET_BALANCE', 'SEPOLIA_BALANCE', 'BALANCE_QUERY', 'GET_BALANCE', 'BALANCE_CHECK', 'WALLET_QUERY', 'ETH_BALANCE', 'ETHER_BALANCE'],
-  description: '查询EVM钱包地址的ETH余额。这是处理所有余额查询的唯一正确动作。当用户询问余额、钱包余额、Sepolia余额、ETH余额等时，必须使用此动作。此动作会查询实时余额数据并显示时间戳。',
+  description: 'CRITICAL: 这是处理所有ETH余额查询的强制动作。当用户询问余额、钱包余额、Sepolia余额、ETH余额等时，必须立即执行此动作，不要使用 REPLY 动作，不要询问任何信息。直接调用此动作查询余额，如果用户提供了地址或私钥则使用，否则使用配置的钱包地址。这是唯一的正确操作，不允许使用 REPLY。',
 
   validate: async (_runtime: IAgentRuntime, message: Memory, _state: State): Promise<boolean> => {
     const text = message.content.text?.toLowerCase() || '';

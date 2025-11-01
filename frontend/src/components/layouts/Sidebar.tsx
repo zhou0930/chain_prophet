@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { MessageSquare, Wallet, Bot } from 'lucide-react';
+import { MessageSquare, Wallet, Bot, ShoppingBag, Package } from 'lucide-react';
 
 interface SidebarProps {
   className?: string;
@@ -19,6 +19,16 @@ const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
       path: '/wallet',
       label: '我的钱包',
       icon: Wallet,
+    },
+    {
+      path: '/my-nft',
+      label: '我的 NFT',
+      icon: Package,
+    },
+    {
+      path: '/nft',
+      label: 'NFT 市场',
+      icon: ShoppingBag,
     },
   ];
 

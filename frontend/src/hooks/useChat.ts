@@ -290,12 +290,9 @@ export const useChat = () => {
     }
   }, [currentSession, connectSocket, disconnectSocket]);
 
-  // 组件卸载时断开 Socket 连接
-  useEffect(() => {
-    return () => {
-      disconnectSocket();
-    };
-  }, [disconnectSocket]);
+  // 注意：移除了组件卸载时断开连接的逻辑
+  // 这样即使路由切换，对话也会在后台保持连接，实现静默状态
+  // 只有在用户主动结束会话或会话过期时才会断开连接
 
   // 发送消息
   const sendMessage = useCallback((content: string, metadata?: Record<string, any>) => {

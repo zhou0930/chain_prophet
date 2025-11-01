@@ -6,11 +6,27 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Sidebar from './components/layouts/Sidebar';
 import ChatPage from './pages/ChatPage';
 import WalletPage from './pages/WalletPage';
+import MyNFTPage from './pages/MyNFTPage';
+import NFTMarketplacePage from './pages/NFTMarketplacePage';
 
 // 主应用组件
 const App: React.FC = () => {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
-  const { agents, agentsLoading } = useChat();
+  // 将 useChat hook 提升到 App 层级，保持对话状态在路由切换时不丢失
+  const {
+    messages,
+    currentSession,
+    isTyping,
+    isLoading,
+    agents,
+    agentsLoading,
+    sendMessage,
+    startNewSession,
+    endSession,
+    sendHeartbeat,
+    loadConversation,
+    messagesEndRef,
+  } = useChat();
 
   // 自动选择第一个可用的 Agent
   useEffect(() => {
@@ -38,12 +54,28 @@ const App: React.FC = () => {
                     agents={agents}
                     agentsLoading={agentsLoading}
                     onSelectAgent={setSelectedAgent}
+                    messages={messages}
+                    currentSession={currentSession}
+                    isTyping={isTyping}
+                    isLoading={isLoading}
+                    sendMessage={sendMessage}
+                    startNewSession={startNewSession}
+                    endSession={endSession}
+                    sendHeartbeat={sendHeartbeat}
+                    loadConversation={loadConversation}
+                    messagesEndRef={messagesEndRef}
                   />
                 }
               />
 
               {/* 钱包页面 */}
               <Route path="/wallet" element={<WalletPage />} />
+
+              {/* 我的 NFT 页面 */}
+              <Route path="/my-nft" element={<MyNFTPage />} />
+
+              {/* NFT 市场页面 */}
+              <Route path="/nft" element={<NFTMarketplacePage />} />
             </Routes>
           </div>
         </div>

@@ -1,18 +1,15 @@
 import { useState, useCallback, useEffect } from 'react';
-import { createPublicClient, http, formatEther } from 'viem';
-import { sepolia } from 'viem/chains';
+import { formatEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { saveTransactions, getStoredTransactions, mergeTransactions, saveBalanceHistory, saveLastBalance, getLastBalance, hasBalanceChanged, saveCalculatedBalanceHistory } from '../services/walletStorage';
+import { createPublicClientWithRetry } from '../services/rpcClient';
+import { cachedGetBalance } from '../services/rpcCache';
 
-const SEPOLIA_RPC_URL = (import.meta as any).env?.VITE_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/443ab1c362d646dcaa353c5b653c8173';
 const PRIVATE_KEY = (import.meta as any).env?.VITE_WALLET_PRIVATE_KEY || '';
 const ETHERSCAN_API_KEY = (import.meta as any).env?.VITE_ETHERSCAN_API_KEY || ''; // 可选，用于提高速率限制
 
-// 创建公共客户端
-const publicClient = createPublicClient({
-  chain: sepolia,
-  transport: http(SEPOLIA_RPC_URL),
-});
+// 使用带重试和 RPC 切换的公共客户端
+const publicClient = createPublicClientWithRetry();
 
 export interface Transaction {
   hash: string;
@@ -29,23 +26,30 @@ export interface Transaction {
 
 export const useWallet = () => {
   const [address, setAddress] = useState<string>('');
+  const [myWalletAddress, setMyWalletAddress] = useState<string>('');
   const [balance, setBalance] = useState<string>('0');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 从私钥推导地址
+  // 从私钥推导地址（我的钱包地址）
   useEffect(() => {
     if (PRIVATE_KEY && PRIVATE_KEY.trim()) {
       try {
         const account = privateKeyToAccount(PRIVATE_KEY.trim() as `0x${string}`);
-        setAddress(account.address);
+        const walletAddress = account.address;
+        setMyWalletAddress(walletAddress);
+        // 如果当前没有设置地址，设置为我的钱包地址
+        if (!address) {
+          setAddress(walletAddress);
+        }
       } catch (err) {
         console.error('私钥格式错误:', err);
         setError('私钥格式错误，请检查环境变量 VITE_WALLET_PRIVATE_KEY');
       }
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 只在组件挂载时执行一次
 
   // 查询余额
   const fetchBalance = useCallback(async (walletAddress?: string): Promise<{ balance: string; hasChanged: boolean } | null> => {
@@ -59,9 +63,12 @@ export const useWallet = () => {
     setError(null);
 
     try {
-      const balance = await publicClient.getBalance({
-        address: targetAddress as `0x${string}`,
-      });
+      const balance = await cachedGetBalance(
+        targetAddress,
+        () => publicClient.getBalance({
+          address: targetAddress as `0x${string}`,
+        })
+      );
       const balanceStr = formatEther(balance);
       
       // 获取上次余额并比较
@@ -262,6 +269,7 @@ export const useWallet = () => {
   return {
     // 状态
     address,
+    myWalletAddress, // 我的钱包地址（从私钥推导）
     balance,
     transactions,
     isLoading,
