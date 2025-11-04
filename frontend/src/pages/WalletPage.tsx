@@ -28,6 +28,7 @@ const WalletPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('transactions');
   const [timeRange, setTimeRange] = useState<TimeRange>('week');
   const itemsPerPage = 5;
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 判断当前地址是否与我的钱包地址相同
   const isCurrentAddressMyWallet = address && myWalletAddress && address.toLowerCase() === myWalletAddress.toLowerCase();
@@ -63,11 +64,27 @@ const WalletPage: React.FC = () => {
     }
   };
 
+  // 包装刷新函数，确保至少0.5秒的动画
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    const startTime = Date.now();
+    
+    try {
+      await refresh();
+    } finally {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, 500 - elapsed);
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, remaining);
+    }
+  }, [refresh]);
+
   // 使用自定义地址查询
   const handleUseCustomAddress = () => {
     if (customAddress && /^0x[a-fA-F0-9]{40}$/.test(customAddress)) {
       setAddress(customAddress);
-      refresh();
+      handleRefresh();
       setCustomAddress('');
     }
   };
@@ -113,36 +130,31 @@ const WalletPage: React.FC = () => {
     return `${year}-${month}-${day}`;
   }, []);
 
-  // 资产走势数据 - 按天聚合
+  // 获取本地时区的小时字符串（YYYY-MM-DD HH格式，小时向下取整到偶数）
+  const getLocalHourString = useCallback((date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hour = Math.floor(date.getHours() / 2) * 2; // 向下取整到偶数（0, 2, 4, ...）
+    const hourStr = String(hour).padStart(2, '0');
+    return `${year}-${month}-${day} ${hourStr}:00`;
+  }, []);
+
+  // 获取本地时区的月份字符串（YYYY-MM格式）
+  const getLocalMonthString = useCallback((date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }, []);
+
+  // 资产走势数据 - 按天或小时聚合
   const chartData = useMemo(() => {
     if (!address || !balance || activeTab !== 'trend') {
       return [];
     }
 
     const storedTransactions = getStoredTransactions(address);
-    // 如果没有交易记录，但需要显示今天的数据，仍然返回数据
-    if (storedTransactions.length === 0) {
-      const { startTime, endTime } = getTimeRangeBounds();
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayKey = getLocalDateString(today);
-      const todayStart = today.getTime();
-      
-      // 如果今天在时间范围内，返回今天的当前余额
-      if (todayStart >= startTime && todayStart <= endTime) {
-        return [{
-          dayKey: todayKey,
-          time: today.toLocaleDateString('zh-CN', {
-            month: 'short',
-            day: 'numeric',
-          }),
-          timestamp: Date.now(),
-          balance: parseFloat(balance),
-          transactions: [],
-        }];
-      }
-      return [];
-    }
+    const { startTime, endTime } = getTimeRangeBounds();
 
     // 获取历史余额（优先使用存储的，避免每次重新计算）
     const history = getCalculatedBalanceHistory(
@@ -151,201 +163,293 @@ const WalletPage: React.FC = () => {
       storedTransactions
     );
 
-    const { startTime, endTime } = getTimeRangeBounds();
     const filteredHistory = history.filter(point => point.timestamp >= startTime && point.timestamp <= endTime);
 
-    // 按天聚合数据
-    const dailyData = new Map<string, { timestamp: number; balance: number; transactions: Transaction[] }>();
+    // 判断聚合方式
+    const useHourlyAggregation = timeRange === 'day';
+    const useMonthlyAggregation = timeRange === 'year';
     
-    // 初始化每天的数据（包括今天）
-    const startDate = new Date(startTime);
-    const endDate = new Date(endTime);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayKey = getLocalDateString(today);
+    // 聚合数据（添加标记来区分是否有真实历史数据）
+    const aggregatedData = new Map<string, { timestamp: number; balance: number; transactions: Transaction[]; hasRealData: boolean }>();
     
-    // 确保结束日期至少是今天（如果时间范围不包括今天，也要包含今天）
-    const finalEndDate = endDate > today ? endDate : today;
+    // 初始化时间段的数据
+    const now = Date.now();
+    const todayKey = getLocalDateString(new Date());
     
-    const currentDate = new Date(startDate);
-    currentDate.setHours(0, 0, 0, 0);
+    if (useHourlyAggregation) {
+      // 最近一天：按2小时划分
+      // 首先找到24小时前的第一个偶数小时点
+      const currentTime = new Date(startTime);
+      currentTime.setHours(Math.floor(currentTime.getHours() / 2) * 2, 0, 0, 0);
+      const endTimePlus = Date.now();
+      
+      while (currentTime.getTime() <= endTimePlus) {
+        const hourKey = getLocalHourString(currentTime);
+        const timestamp = currentTime.getTime();
+        
+        // 如果是当前时间段，使用当前余额
+        const isCurrentPeriod = timestamp + 2 * 60 * 60 * 1000 > now;
+        const initialBalance = isCurrentPeriod ? parseFloat(balance) : 0;
+        
+        aggregatedData.set(hourKey, {
+          timestamp,
+          balance: initialBalance,
+          transactions: [],
+          hasRealData: false,
+        });
+        
+        // 增加2小时
+        currentTime.setHours(currentTime.getHours() + 2);
+      }
+    } else if (useMonthlyAggregation) {
+      // 最近一年：按月划分
+      const startDate = new Date(startTime);
+      const endDate = new Date(endTime);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const finalEndDate = endDate > today ? endDate : today;
+      
+      const currentDate = new Date(startDate);
+      currentDate.setDate(1); // 每月第一天
+      currentDate.setHours(0, 0, 0, 0);
 
-    while (currentDate <= finalEndDate) {
-      const dayKey = getLocalDateString(currentDate);
-      const isToday = dayKey === todayKey;
+      while (currentDate <= finalEndDate) {
+        const monthKey = getLocalMonthString(currentDate);
+        const isCurrentMonth = monthKey === getLocalMonthString(new Date());
+        
+        // 如果是当前月，使用当前时间；否则使用月末时间
+        const timestamp = isCurrentMonth ? Date.now() : new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+        const initialBalance = isCurrentMonth ? parseFloat(balance) : 0;
+        
+        aggregatedData.set(monthKey, {
+          timestamp,
+          balance: initialBalance,
+          transactions: [],
+          hasRealData: false,
+        });
+        currentDate.setMonth(currentDate.getMonth() + 1);
+      }
+    } else {
+      // 最近一周/一月：按天划分
+      const startDate = new Date(startTime);
+      const endDate = new Date(endTime);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const finalEndDate = endDate > today ? endDate : today;
       
-      // 如果是今天，使用当前时间作为时间戳；否则使用当天结束时间
-      const timestamp = isToday ? Date.now() : new Date(currentDate.getTime() + 86400000 - 1).getTime();
-      
-      // 如果是今天，使用当前余额；否则初始化为0
-      const initialBalance = isToday ? parseFloat(balance) : 0;
-      
-      dailyData.set(dayKey, {
-        timestamp,
-        balance: initialBalance,
-        transactions: [],
-      });
-      currentDate.setDate(currentDate.getDate() + 1);
+      const currentDate = new Date(startDate);
+      currentDate.setHours(0, 0, 0, 0);
+
+      while (currentDate <= finalEndDate) {
+        const dayKey = getLocalDateString(currentDate);
+        const isToday = dayKey === todayKey;
+        
+        const timestamp = isToday ? Date.now() : new Date(currentDate.getTime() + 86400000 - 1).getTime();
+        const initialBalance = isToday ? parseFloat(balance) : 0;
+        
+        aggregatedData.set(dayKey, {
+          timestamp,
+          balance: initialBalance,
+          transactions: [],
+          hasRealData: false,
+        });
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
     }
 
-    // 找出每天的最后一条记录（最接近23:59的）
-    // 优化：先按时间排序，然后遍历一次即可
+    // 找出每个时间段的最后一条记录
     if (filteredHistory.length > 0) {
       filteredHistory.sort((a, b) => a.timestamp - b.timestamp);
       
       filteredHistory.forEach(point => {
         const pointDate = new Date(point.timestamp);
-        const dayKey = getLocalDateString(pointDate);
+        const key = useHourlyAggregation 
+          ? getLocalHourString(pointDate) 
+          : useMonthlyAggregation 
+            ? getLocalMonthString(pointDate) 
+            : getLocalDateString(pointDate);
         
-        if (dailyData.has(dayKey)) {
-          const dayData = dailyData.get(dayKey)!;
+        if (aggregatedData.has(key)) {
+          const periodData = aggregatedData.get(key)!;
           const pointBalance = parseFloat(point.balance);
-          // 更新为该天最接近23:59的记录（取时间最大的）
-          // 如果余额为0，也更新（可能确实是0，或者是历史计算的问题）
-          // 但如果是今天，不要覆盖已经设置的当前余额
-          const isToday = dayKey === todayKey;
-          if (point.timestamp > dayData.timestamp || (dayData.balance === 0 && pointBalance > 0 && !isToday)) {
-            // 如果不是今天，或者今天的余额还是初始值，才更新
-            if (!isToday || dayData.balance === parseFloat(balance)) {
-              dayData.timestamp = point.timestamp;
-              dayData.balance = pointBalance;
-            }
+          
+          // 总是更新为该时间段的最大时间戳对应的余额
+          if (!periodData.hasRealData || point.timestamp > periodData.timestamp) {
+            periodData.timestamp = point.timestamp;
+            periodData.balance = pointBalance;
+            periodData.hasRealData = true;
           }
         }
       });
     }
 
-    // 找出每天对应的交易记录（优化：只在需要的日期范围内查找）
+    // 找出每个时间段对应的交易记录
     storedTransactions.forEach(tx => {
       const txTime = tx.timestamp * 1000;
       if (txTime >= startTime && txTime <= endTime) {
         const txDate = new Date(txTime);
-        const dayKey = getLocalDateString(txDate);
+        const key = useHourlyAggregation 
+          ? getLocalHourString(txDate) 
+          : useMonthlyAggregation 
+            ? getLocalMonthString(txDate) 
+            : getLocalDateString(txDate);
         
-        if (dailyData.has(dayKey)) {
-          dailyData.get(dayKey)!.transactions.push(tx);
+        if (aggregatedData.has(key)) {
+          aggregatedData.get(key)!.transactions.push(tx);
         }
       }
     });
 
-    // 填充没有余额的日期：使用前一天的余额或当前余额
-    const sortedDailyEntries = Array.from(dailyData.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    // 填充没有余额的时间段：使用前一个时间段的余额或当前余额
+    const sortedEntries = Array.from(aggregatedData.entries()).sort((a, b) => a[1].timestamp - b[1].timestamp);
     
-    sortedDailyEntries.forEach(([dayKey, dayData]) => {
-      const isToday = dayKey === todayKey;
+    // 先更新当前时间段
+    sortedEntries.forEach(([key, periodData]) => {
+      const currentHourKey = getLocalHourString(new Date());
+      const currentMonthKey = getLocalMonthString(new Date());
+      const isCurrentPeriod = useHourlyAggregation 
+        ? key === currentHourKey 
+        : useMonthlyAggregation 
+          ? key === currentMonthKey 
+          : key === todayKey;
       
-      // 如果是今天，确保使用当前余额和当前时间戳
-      if (isToday) {
-        dayData.balance = parseFloat(balance);
-        dayData.timestamp = Date.now();
-        return;
-      }
-      
-      // 对于其他日期，如果没有余额，使用前一天的余额
-      if (dayData.balance === 0) {
-        const currentIndex = sortedDailyEntries.findIndex(([key]) => key === dayKey);
-        
-        if (currentIndex > 0) {
-          // 使用前一天的余额
-          const prevBalance = sortedDailyEntries[currentIndex - 1][1].balance;
-          if (prevBalance > 0) {
-            dayData.balance = prevBalance;
-          }
-        }
+      if (isCurrentPeriod) {
+        periodData.balance = parseFloat(balance);
+        periodData.timestamp = Date.now();
+        periodData.hasRealData = true;
       }
     });
+    
+    // 然后从后往前填充没有真实数据的时间段
+    for (let i = sortedEntries.length - 1; i >= 0; i--) {
+      const [, periodData] = sortedEntries[i];
+      
+      // 如果当前时间段没有真实数据，使用后一时间段的余额
+      if (!periodData.hasRealData && i < sortedEntries.length - 1) {
+        const [, nextPeriodData] = sortedEntries[i + 1];
+        if (nextPeriodData.balance > 0) {
+          periodData.balance = nextPeriodData.balance;
+        }
+      }
+    }
 
-    // 转换为数组并排序（优化：合并去重和过滤逻辑）
-    const result: Array<{
+    // 转换为数组并排序
+    const allPoints: Array<{
       dayKey: string;
       time: string;
       timestamp: number;
       balance: number;
       transactions: Transaction[];
     }> = [];
-    const seenDays = new Set<string>();
     
-    // 按时间正序处理
-    Array.from(dailyData.entries())
+    // 按时间正序处理，收集所有点
+    Array.from(aggregatedData.entries())
       .sort((a, b) => a[1].timestamp - b[1].timestamp)
-      .forEach(([dayKey, data]) => {
-        // 去重检查
-        if (seenDays.has(dayKey)) {
-          return;
-        }
+      .forEach(([key, data]) => {
+        // 判断是否为当前时间段
+        const currentHourKey = getLocalHourString(new Date());
+        const currentMonthKey = getLocalMonthString(new Date());
+        const isCurrentPeriod = useHourlyAggregation 
+          ? key === currentHourKey 
+          : useMonthlyAggregation 
+            ? key === currentMonthKey 
+            : key === todayKey;
         
-        // 过滤：只保留有余额或有交易的日期
-        // 如果是今天，无论是否有交易都显示
-        const isToday = dayKey === todayKey;
-        
-        // 对于今天，总是显示（使用当前余额）
-        // 对于其他日期，至少要有余额或有交易
-        if (isToday || data.balance > 0 || data.transactions.length > 0) {
-          seenDays.add(dayKey);
+        // 对于当前时间段，总是显示
+        // 对于其他时间段，至少要有余额或有交易（优化逻辑会进一步过滤）
+        if (isCurrentPeriod || data.balance > 0 || data.transactions.length > 0) {
+          // 如果是当前时间段，使用当前余额
+          const finalBalance = isCurrentPeriod ? parseFloat(balance) : data.balance;
+          const finalTimestamp = isCurrentPeriod ? Date.now() : data.timestamp;
           
-          // 确保今天的余额使用当前余额
-          const finalBalance = isToday ? parseFloat(balance) : data.balance;
-          const finalTimestamp = isToday ? Date.now() : data.timestamp;
-          
-          // 调试日志
-          if (isToday) {
-            console.log('[资产走势] 添加今天的数据:', {
-              dayKey,
-              balance: finalBalance,
-              timestamp: finalTimestamp,
-              currentBalance: balance
+          // 格式化显示时间
+          let timeLabel: string;
+          if (useHourlyAggregation) {
+            // 小时格式：解析 "2024-01-01 02:00"
+            const [datePart, timePart] = key.split(' ');
+            const [year, month, day] = datePart.split('-').map(Number);
+            const hour = parseInt(timePart.split(':')[0]);
+            const displayDate = new Date(year, month - 1, day, hour);
+            timeLabel = displayDate.toLocaleString('zh-CN', {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit'
+            });
+          } else if (useMonthlyAggregation) {
+            // 月份格式：解析 "2024-01"
+            const [year, month] = key.split('-').map(Number);
+            const displayDate = new Date(year, month - 1, 1);
+            timeLabel = displayDate.toLocaleDateString('zh-CN', {
+              year: 'numeric',
+              month: 'short',
+            });
+          } else {
+            // 日期格式：解析 "2024-01-01"
+            const [year, month, day] = key.split('-').map(Number);
+            const displayDate = new Date(year, month - 1, day);
+            timeLabel = displayDate.toLocaleDateString('zh-CN', {
+              month: 'short',
+              day: 'numeric',
             });
           }
           
-          // 解析日期字符串为本地日期对象用于显示
-          const [year, month, day] = dayKey.split('-').map(Number);
-          const displayDate = new Date(year, month - 1, day);
-          
-          result.push({
-            dayKey,
-            time: displayDate.toLocaleDateString('zh-CN', {
-              month: 'short',
-              day: 'numeric',
-            }),
+          allPoints.push({
+            dayKey: key,
+            time: timeLabel,
             timestamp: finalTimestamp,
             balance: finalBalance,
-            transactions: data.transactions.sort((a, b) => b.timestamp - a.timestamp), // 按时间倒序
+            transactions: data.transactions.sort((a, b) => b.timestamp - a.timestamp),
           });
         }
       });
 
-    // 调试日志：检查是否包含今天
-    const hasToday = result.some(item => item.dayKey === todayKey);
-    if (!hasToday && dailyData.has(todayKey)) {
-      console.warn('[资产走势] 今天的数据没有被添加到结果中，强制添加');
-      const todayData = dailyData.get(todayKey)!;
-      // 解析今天日期字符串为本地日期对象用于显示
-      const [year, month, day] = todayKey.split('-').map(Number);
-      const displayDate = new Date(year, month - 1, day);
+    // 优化：移除中间余额未变化的点
+    const optimizedResult: typeof allPoints = [];
+    let lastBalance: number | null = null;
+    
+    // 找到最早有交易的时间
+    const earliestTxTime = storedTransactions.length > 0 
+      ? Math.min(...storedTransactions.map(tx => tx.timestamp * 1000))
+      : null;
+    
+    // 找到第一个有有效数据的点（在最早交易时间之后）
+    let firstValidIndex = -1;
+    for (let i = 0; i < allPoints.length; i++) {
+      const point = allPoints[i];
+      const hasData = point.balance > 0 || point.transactions.length > 0;
+      const afterEarliest = !earliestTxTime || point.timestamp >= earliestTxTime;
+      if (hasData && afterEarliest) {
+        firstValidIndex = i;
+        break;
+      }
+    }
+    
+    for (let i = 0; i < allPoints.length; i++) {
+      const current = allPoints[i];
+      const isFirstValid = firstValidIndex >= 0 && i === firstValidIndex;
+      const isLast = i === allPoints.length - 1;
+      const currentHourKey = getLocalHourString(new Date());
+      const currentMonthKey = getLocalMonthString(new Date());
+      const isCurrentPeriod = useHourlyAggregation 
+        ? current.dayKey === currentHourKey 
+        : useMonthlyAggregation 
+          ? current.dayKey === currentMonthKey 
+          : current.dayKey === todayKey;
+      const balanceChanged = lastBalance !== null && Math.abs(current.balance - lastBalance) > 0.000001;
+      const hasTransactions = current.transactions.length > 0;
       
-      result.push({
-        dayKey: todayKey,
-        time: displayDate.toLocaleDateString('zh-CN', {
-          month: 'short',
-          day: 'numeric',
-        }),
-        timestamp: Date.now(),
-        balance: parseFloat(balance),
-        transactions: todayData.transactions,
-      });
-      // 重新排序
-      result.sort((a, b) => a.timestamp - b.timestamp);
+      // 保留：第一个有效点、最后一个点、当前时间段、有变化的点、有交易的点
+      if (isFirstValid || isLast || isCurrentPeriod || balanceChanged || hasTransactions) {
+        optimizedResult.push(current);
+        lastBalance = current.balance;
+      } else {
+        // 不保留这个点，但记录最后的余额
+        lastBalance = current.balance;
+      }
     }
 
-    console.log('[资产走势] 最终结果:', {
-      total: result.length,
-      hasToday: result.some(item => item.dayKey === todayKey),
-      todayKey,
-      lastItem: result[result.length - 1]
-    });
-
-    return result;
-  }, [address, balance, timeRange, activeTab, getTimeRangeBounds, getLocalDateString]);
+    return optimizedResult;
+  }, [address, balance, timeRange, activeTab, getTimeRangeBounds, getLocalDateString, getLocalHourString, getLocalMonthString]);
 
   // 统计数据
   const trendStats = useMemo(() => {
@@ -512,11 +616,11 @@ const WalletPage: React.FC = () => {
             </div>
             
             <button
-              onClick={refresh}
-              disabled={isLoading || !address}
+              onClick={handleRefresh}
+              disabled={isRefreshing || !address}
               className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-secondary-300 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm"
             >
-              <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
               <span>刷新余额</span>
             </button>
           </div>
@@ -583,11 +687,11 @@ const WalletPage: React.FC = () => {
               </button>
             </div>
             <button
-              onClick={refresh}
-              disabled={isLoading || !address}
+              onClick={handleRefresh}
+              disabled={isRefreshing || !address}
               className="flex items-center space-x-2 px-3 py-2 text-sm text-secondary-600 hover:text-secondary-900 hover:bg-secondary-100 rounded-lg transition-colors disabled:opacity-50"
             >
-              <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
               <span>刷新</span>
             </button>
           </div>

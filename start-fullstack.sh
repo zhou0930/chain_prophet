@@ -74,7 +74,6 @@ echo ""
 echo "🎉 全栈应用已启动！"
 echo "📍 后端 API: http://localhost:3000"
 echo "📍 前端应用: http://localhost:3001"
-echo "🔗 健康检查: http://localhost:3000/api/health"
 echo ""
 echo "按 Ctrl+C 停止所有服务"
 

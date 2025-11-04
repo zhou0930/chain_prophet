@@ -151,9 +151,16 @@ export const calculateBalanceHistoryFromTransactions = (
   // 按时间倒序排列交易（从新到旧），这样才能正确逆向计算
   const sortedTx = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
   
-  // 从最新的交易开始，逆向计算每个交易前的余额
+  // 从最新的交易开始，逆向计算每个交易后的余额
   for (const tx of sortedTx) {
     const txBalance = parseFloat(tx.value);
+    
+    // 先将当前余额记录为交易后的余额
+    history.unshift({
+      timestamp: tx.timestamp * 1000, // 转换为毫秒
+      balance: balance.toFixed(6),
+      address: address.toLowerCase(),
+    });
     
     // 逆向计算：从当前余额（交易后）计算交易前的余额
     if (tx.isIncoming) {
@@ -165,14 +172,7 @@ export const calculateBalanceHistoryFromTransactions = (
     }
     
     // 确保余额不为负
-    const balanceBeforeTx = Math.max(0, balance);
-    
-    // 添加历史点（使用交易时间戳，这是交易前的余额）
-    history.unshift({
-      timestamp: tx.timestamp * 1000, // 转换为毫秒
-      balance: balanceBeforeTx.toFixed(6),
-      address: address.toLowerCase(),
-    });
+    balance = Math.max(0, balance);
   }
   
   // 添加当前余额点（最新的，放在最后）

@@ -1,6 +1,7 @@
 import { logger, type IAgentRuntime, type Project, type ProjectAgent } from '@elizaos/core';
-import starterPlugin from './plugin.ts';
+import { starterPlugin } from './plugin.ts';
 import { evmBalancePlugin } from './evm-balance-plugin.ts';
+import { evmTransferPlugin } from './evm-transfer-plugin.ts';
 import { nftPlugin } from './nft-plugin.ts';
 import { character } from './character.ts';
 
@@ -12,8 +13,7 @@ const initCharacter = ({ runtime }: { runtime: IAgentRuntime }) => {
 export const projectAgent: ProjectAgent = {
   character,
   init: async (runtime: IAgentRuntime) => await initCharacter({ runtime }),
-  // NFT 插件放在最前面以确保最高优先级
-  plugins: [nftPlugin, starterPlugin, evmBalancePlugin], // NFT 插件优先，避免与 EVM 插件冲突
+  plugins: [nftPlugin, evmTransferPlugin, evmBalancePlugin, starterPlugin],
 };
 
 const project: Project = {

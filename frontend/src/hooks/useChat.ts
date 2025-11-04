@@ -50,9 +50,39 @@ export const useChat = () => {
       socketService.onMessageBroadcast((message: Message) => {
         console.log('[Socket.IO] 收到 AI 消息:', message);
         
+        // 检查是否是按钮点击消息（用户发送的），如果是则不显示
+        const buttonCallbackDataValues = ['balance_confirm_yes', 'balance_confirm_no', 'transfer_confirm_yes', 'transfer_confirm_no', 'nft_action_confirm_yes', 'nft_action_confirm_no'];
+        const isButtonClickMessage = message.metadata?.isButtonClick || 
+                                     message.metadata?.buttonCallbackData ||
+                                     message.metadata?.callback_data ||
+                                     (message.content && buttonCallbackDataValues.includes(message.content)) ||
+                                     // 如果是用户消息且内容是 callback_data 值，也认为是按钮点击
+                                     (message.role === 'user' && message.content && buttonCallbackDataValues.includes(message.content));
+        
+        if (isButtonClickMessage) {
+          console.log('[useChat] 忽略按钮点击消息（不显示）:', {
+            content: message.content,
+            role: message.role,
+            metadata: message.metadata,
+            id: message.id,
+          });
+          setIsTyping(false);
+          return;
+        }
+        
         // 检查是否已处理过
         if (!processedMessageIds.current.has(message.id)) {
           setMessages(prev => {
+            // 双重检查：确保不会添加按钮点击消息
+            const buttonCallbackDataValues = ['balance_confirm_yes', 'balance_confirm_no', 'transfer_confirm_yes', 'transfer_confirm_no', 'nft_action_confirm_yes', 'nft_action_confirm_no'];
+            const isButtonMsg = message.metadata?.isButtonClick || 
+                               message.metadata?.buttonCallbackData ||
+                               (message.content && buttonCallbackDataValues.includes(message.content));
+            if (isButtonMsg) {
+              console.log('[useChat] 在 setMessages 中再次过滤按钮点击消息');
+              return prev;
+            }
+            
             const exists = prev.some(msg => msg.id === message.id);
             if (!exists) {
               return [...prev, message];
@@ -156,7 +186,7 @@ export const useChat = () => {
     mutationFn: async ({ sessionId, content, metadata }: { 
       sessionId: string; 
       content: string; 
-      metadata?: Record<string, any> 
+      metadata?: Record<string, any>;
     }) => {
       console.log('通过 Socket.IO 发送消息:', { sessionId, content, metadata });
       
@@ -180,11 +210,31 @@ export const useChat = () => {
         actions: [],
       };
     },
-    onMutate: async ({ content }) => {
+    onMutate: async ({ content, metadata }) => {
+      // 如果是按钮点击消息，不添加到聊天界面（不显示给用户）
+      const buttonCallbackDataValues = ['balance_confirm_yes', 'balance_confirm_no', 'nft_action_confirm_yes', 'nft_action_confirm_no'];
+      const isButtonClickMessage = metadata?.isButtonClick || 
+                                   metadata?.buttonCallbackData ||
+                                   metadata?.callback_data ||
+                                   (content && buttonCallbackDataValues.includes(content));
+      
+      if (isButtonClickMessage) {
+        console.log('[useChat] 按钮点击消息，不显示给用户（跳过乐观更新）:', {
+          content,
+          metadata,
+          isButtonClick: metadata?.isButtonClick,
+          buttonCallbackData: metadata?.buttonCallbackData,
+        });
+        setIsTyping(true);
+        return;
+      }
+      
       // 乐观更新：立即添加用户消息
+      // 如果有 originalContent，显示原始内容；否则显示处理后的内容
+      const displayContent = metadata?.originalContent || content;
       const userMessage: Message = {
         id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        content,
+        content: displayContent,
         role: 'user',
         timestamp: Date.now(),
       };
@@ -227,7 +277,9 @@ export const useChat = () => {
         role: msg.role || 'agent',
         timestamp: msg.timestamp || Date.now(),
         actions: msg.actions,
+        buttons: msg.buttons, // 保留按钮信息
         metadata: msg.metadata,
+        rawMessage: msg.rawMessage,
       }));
       setMessages(formattedMessages);
       setIsInitialLoad(false); // 标记为已加载

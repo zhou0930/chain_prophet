@@ -20,6 +20,7 @@ interface SocketMessagePayload {
   source?: string;
   attachments?: any[];
   metadata?: Record<string, any>;
+  callback_data?: string; // 按钮回调数据
 }
 
 interface SocketMessageResponse {
@@ -35,6 +36,7 @@ interface SocketMessageResponse {
   source?: string;
   thought?: string;
   actions?: string[];
+  buttons?: Array<Array<{ text: string; callback_data?: string; url?: string }>>;
   attachments?: any[];
   metadata?: Record<string, any>;
   isAgent?: boolean;
@@ -214,11 +216,17 @@ class SocketService {
 
     // 构建消息负载，包含后端所需的所有字段
     // 根据成功的例子，需要设置 metadata 中的 channelType、isDm 和 targetUserId
+    const hasCallbackData = metadata?.callback_data;
+    
+    // 如果有 callback_data，将其作为消息内容发送，这样后端可以从 message.content 读取
+    // 同时也在 metadata 和顶层字段中保留，确保后端可以从多个位置读取
+    const messageContent = hasCallbackData ? metadata.callback_data : content;
+    
     const messagePayload: SocketMessagePayload = {
       senderId: this.userId!,
       author_id: this.userId!, // 某些后端可能需要 author_id
       senderName: 'user', // 小写，与成功例子一致
-      message: content,
+      message: messageContent, // 按钮点击时发送 callback_data 作为消息内容
       channelId: this.sessionId!, // 必需字段：使用 sessionId 作为 channelId
       serverId: this.serverId, // 必需字段：使用默认 serverId
       server_id: this.serverId, // 某些后端可能需要 server_id
@@ -230,9 +238,20 @@ class SocketService {
         channelType: 'DM', // 设置为 DM 类型
         isDm: true, // 标记为 DM
         targetUserId: this.agentId || '', // 设置目标 Agent ID，这是关键！
-        ...(metadata || {}), // 合并用户传入的 metadata
+        ...(metadata || {}), // 合并用户传入的 metadata（包含 callback_data, isButtonClick 等）
       },
+      // 如果 metadata 中包含 callback_data，也在顶层设置，以便后端识别
+      ...(hasCallbackData ? { callback_data: metadata.callback_data } : {}),
     };
+    
+    console.log('[Socket.IO] 发送按钮点击消息:', {
+      hasCallbackData,
+      callbackData: metadata?.callback_data,
+      messagePayload: {
+        ...messagePayload,
+        metadata: { ...messagePayload.metadata, callback_data: '***' }, // 隐藏敏感信息
+      },
+    });
 
     console.log('[Socket.IO] 发送消息:', messagePayload);
 
@@ -243,6 +262,13 @@ class SocketService {
     });
   }
 
+  // 临时存储最近包含按钮的 actionResult，以便在后续消息中使用
+  private recentActionResultWithButtons: {
+    buttons?: Array<Array<{ text: string; callback_data?: string; url?: string }>>;
+    text?: string;
+    timestamp: number;
+  } | null = null;
+
   // 监听消息广播
   onMessageBroadcast(callback: (message: Message) => void): void {
     if (!this.socket) {
@@ -251,7 +277,22 @@ class SocketService {
     }
 
     this.socket.on('messageBroadcast', (data: SocketMessageResponse) => {
-      console.log('[Socket.IO] 收到消息广播:', data);
+      console.log('[Socket.IO] 收到消息广播:', JSON.stringify(data, null, 2));
+      // 注意：rawMessage 可能是 rawMessage（驼峰）或 raw_message（下划线）
+      const rawMessage = data.rawMessage || data.raw_message;
+      console.log('[Socket.IO] 消息数据详情:', {
+        hasButtons: !!data.buttons,
+        buttons: data.buttons,
+        hasRawMessage: !!rawMessage,
+        rawMessageType: rawMessage ? typeof rawMessage : undefined,
+        rawMessageKeys: rawMessage ? Object.keys(rawMessage) : [],
+        rawMessageButtons: rawMessage?.buttons,
+        hasMetadata: !!data.metadata,
+        metadataButtons: data.metadata?.buttons,
+        rawMessage: rawMessage,
+        allKeys: Object.keys(data),
+        allData: data, // 完整数据用于调试
+      });
 
       // 检查消息是否属于当前会话
       const roomId = data.roomId || data.channelId;
@@ -270,15 +311,117 @@ class SocketService {
 
       // 如果发送者不是当前用户，则认为是 AI 消息
       const isNotUserMessage = !data.senderId || data.senderId !== this.userId;
+      
+      // 检查是否是按钮点击产生的用户消息，如果是则不显示
+      // 检查多个可能的标识：metadata、消息内容、callback_data 值
+      const buttonCallbackDataValues = ['balance_confirm_yes', 'balance_confirm_no', 'transfer_confirm_yes', 'transfer_confirm_no', 'nft_action_confirm_yes', 'nft_action_confirm_no'];
+      const messageText = data.text || data.content || '';
+      const isButtonClickMessage = data.metadata?.isButtonClick || 
+                                   data.metadata?.buttonCallbackData ||
+                                   data.metadata?.callback_data ||
+                                   data.callback_data ||
+                                   (messageText && buttonCallbackDataValues.includes(messageText)) ||
+                                   (data.source === 'button_click') ||
+                                   // 检查原始消息内容是否为空但包含 callback_data（按钮点击特征）
+                                   (messageText === '' && (data.metadata?.callback_data || data.callback_data)) ||
+                                   // 检查 senderId 匹配且消息内容是 callback_data 值
+                                   (data.senderId === this.userId && messageText && buttonCallbackDataValues.includes(messageText));
+      
+      // 如果是用户发送的按钮点击消息，不显示（无论是否有 senderId 匹配）
+      if (isButtonClickMessage) {
+        console.log('[Socket.IO] 忽略按钮点击消息（不显示给用户）:', {
+          text: messageText,
+          senderId: data.senderId,
+          userId: this.userId,
+          metadata: data.metadata,
+          callback_data: data.callback_data,
+        });
+        return;
+      }
 
       if (isAgentMessage && isNotUserMessage) {
         const content = data.text || data.content || '';
         
-        // 忽略所有 action 相关的消息（执行中和完成的都忽略）
-        if (content.match(/^Executing action:/) || content.match(/^Action \w+ completed/)) {
-          console.log('[Socket.IO] 忽略 action 消息:', content);
+        // 注意：rawMessage 可能是 rawMessage（驼峰）或 raw_message（下划线）
+        // 在函数开始时获取一次，后续复用
+        const rawMessage = data.rawMessage || data.raw_message;
+        
+        // 检查是否是 action 完成消息，但包含需要显示给用户的内容（如确认按钮）
+        const isActionCompletedMessage = content.match(/^Action \w+ completed/);
+        const actionResult = rawMessage?.actionResult;
+        const hasButtonsInActionResult = actionResult?.data?.buttons;
+        
+        // 如果这是 action 完成消息但包含按钮，保存按钮信息供后续确认消息使用
+        if (isActionCompletedMessage && hasButtonsInActionResult) {
+          console.log('[Socket.IO] Action 消息包含按钮，保存按钮信息供后续消息使用:', {
+            actionResult,
+            buttons: actionResult.data.buttons,
+          });
+          
+          // 保存按钮信息供后续消息使用（特别是确认消息）
+          this.recentActionResultWithButtons = {
+            buttons: actionResult.data.buttons,
+            text: actionResult.text,
+            timestamp: Date.now(),
+          };
+          
+          // 不创建新消息，让后续的 callback 消息使用这些按钮
+          // callback 发送的确认消息会在后续到达，那时会自动附加按钮
+          console.log('[Socket.IO] 已保存按钮信息，等待后续的确认消息...');
+          return; // 忽略这条 action 完成消息
+        }
+        
+        // 忽略所有 action 相关的消息（执行中和完成的都忽略，除非包含按钮）
+        if (isActionCompletedMessage && !hasButtonsInActionResult) {
+          console.log('[Socket.IO] 忽略 action 消息（无按钮）:', content);
           return;
         }
+        if (content.match(/^Executing action:/)) {
+          console.log('[Socket.IO] 忽略 action 执行消息:', content);
+          return;
+        }
+        
+        // 检查内容是否是确认消息（包含"请确认"等关键词）
+        const isConfirmationMessage = content.includes('请确认') || 
+                                     content.includes('确认是否') ||
+                                     content.includes('确认操作');
+        
+        // 尝试从多个位置提取 buttons，包括最近保存的按钮
+        // rawMessage 已在函数开始处获取
+        let buttons = data.buttons || 
+                     data.metadata?.buttons ||
+                     rawMessage?.buttons ||
+                     rawMessage?.metadata?.buttons ||
+                     rawMessage?.actionResult?.data?.buttons ||
+                     (rawMessage?.rawMessage?.buttons) ||
+                     (rawMessage?.raw_message?.buttons) ||
+                     (rawMessage?.rawMessage?.metadata?.buttons) ||
+                     (rawMessage?.raw_message?.metadata?.buttons) ||
+                     undefined;
+        
+        // 如果是确认消息但没有找到按钮，尝试从最近保存的 actionResult 中获取
+        if (isConfirmationMessage && !buttons && this.recentActionResultWithButtons) {
+          const timeDiff = Date.now() - this.recentActionResultWithButtons.timestamp;
+          if (timeDiff < 10000) { // 10秒内的 actionResult
+            buttons = this.recentActionResultWithButtons.buttons;
+            console.log('[Socket.IO] 从最近的 actionResult 中提取按钮:', buttons);
+          }
+        }
+        
+        // 如果没有找到按钮，检查是否有最近的 action 消息包含按钮
+        // 注意：这可能需要维护一个临时的状态来存储最近的 actionResult
+        console.log('[Socket.IO] 提取的 buttons:', buttons);
+        // rawMessage 已在函数开始处获取
+        console.log('[Socket.IO] 检查 metadata:', {
+          hasMetadata: !!data.metadata,
+          metadataKeys: data.metadata ? Object.keys(data.metadata) : [],
+          metadataButtons: data.metadata?.buttons,
+          hasRawMessage: !!rawMessage,
+          rawMessageKeys: rawMessage ? Object.keys(rawMessage) : [],
+          actionResultButtons: rawMessage?.actionResult?.data?.buttons,
+          isConfirmationMessage,
+          recentActionResultButtons: this.recentActionResultWithButtons?.buttons,
+        });
         
         const message: Message = {
           id: data.id || `agent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -286,8 +429,17 @@ class SocketService {
           role: 'agent',
           timestamp: data.timestamp || (data.createdAt ? new Date(data.createdAt).getTime() : Date.now()),
           actions: data.actions || [],
+          buttons: buttons,
           metadata: data.metadata || {},
+          rawMessage: rawMessage || data.raw_message,
         };
+
+        console.log('[Socket.IO] 创建的消息对象:', {
+          id: message.id,
+          content: message.content.substring(0, 50) + '...',
+          hasButtons: !!message.buttons,
+          buttons: message.buttons,
+        });
 
         callback(message);
       }

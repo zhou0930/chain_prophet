@@ -28,6 +28,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (message.trim() && !isLoading) {
+      // 直接发送原始消息，替换逻辑在 ChatPage 中处理
       onSendMessage(message.trim());
       setMessage('');
     }

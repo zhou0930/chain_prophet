@@ -5481,15 +5481,15 @@ function weierstrassPoints(opts) {
       throw new Error("ProjectivePoint expected");
   }
   const toAffineMemo = memoized((p, iz) => {
-    const { px: x, py: y, pz: z } = p;
-    if (Fp.eql(z, Fp.ONE))
+    const { px: x, py: y, pz: z2 } = p;
+    if (Fp.eql(z2, Fp.ONE))
       return { x, y };
     const is0 = p.is0();
     if (iz == null)
-      iz = is0 ? Fp.ONE : Fp.inv(z);
+      iz = is0 ? Fp.ONE : Fp.inv(z2);
     const ax = Fp.mul(x, iz);
     const ay = Fp.mul(y, iz);
-    const zz = Fp.mul(z, iz);
+    const zz = Fp.mul(z2, iz);
     if (is0)
       return { x: Fp.ZERO, y: Fp.ZERO };
     if (!Fp.eql(zz, Fp.ONE))
@@ -15909,15 +15909,15 @@ function weierstrassPoints2(opts) {
       throw new Error("ProjectivePoint expected");
   }
   const toAffineMemo = memoized2((p, iz) => {
-    const { px: x, py: y, pz: z } = p;
-    if (Fp.eql(z, Fp.ONE))
+    const { px: x, py: y, pz: z2 } = p;
+    if (Fp.eql(z2, Fp.ONE))
       return { x, y };
     const is0 = p.is0();
     if (iz == null)
-      iz = is0 ? Fp.ONE : Fp.inv(z);
+      iz = is0 ? Fp.ONE : Fp.inv(z2);
     const ax = Fp.mul(x, iz);
     const ay = Fp.mul(y, iz);
-    const zz = Fp.mul(z, iz);
+    const zz = Fp.mul(z2, iz);
     if (is0)
       return { x: Fp.ZERO, y: Fp.ZERO };
     if (!Fp.eql(zz, Fp.ONE))
@@ -19880,6 +19880,7 @@ var init__esm = __esm(() => {
   init_createPublicClient();
   init_createWalletClient();
   init_http2();
+  init_isAddress();
   init_formatEther();
   init_parseEther();
 });
@@ -20099,11 +20100,11 @@ __export(exports_nft_service, {
   analyzeNFTError: () => analyzeNFTError,
   NFTService: () => NFTService
 });
-import { logger as logger3 } from "@elizaos/core";
+import { logger as logger4 } from "@elizaos/core";
 function analyzeNFTError(error, operation) {
   const errorMessage = error.message || String(error);
   const errorString = errorMessage.toLowerCase();
-  logger3.info({ errorMessage, operation }, "Analyzing NFT error");
+  logger4.info({ errorMessage, operation }, "Analyzing NFT error");
   if (errorMessage.includes("0x177e802f") || errorMessage.includes("ERC721InsufficientApproval") || errorMessage.includes("insufficient approval") || errorMessage.includes("caller is not token owner or approved") || errorMessage.includes("not authorized") || errorMessage.includes("未授权")) {
     return {
       errorType: "授权错误",
@@ -20328,7 +20329,7 @@ class NFTService {
       });
       return approvedAddress.toLowerCase() === NFT_MARKETPLACE_ADDRESS.toLowerCase();
     } catch (error) {
-      logger3.error({ error }, "检查授权状态失败");
+      logger4.error({ error }, "检查授权状态失败");
       return false;
     }
   }
@@ -20348,7 +20349,7 @@ class NFTService {
     }
     const isApproved = await this.checkMarketplaceApproval(tokenId);
     if (!isApproved && autoApprove) {
-      logger3.info(`NFT ${tokenId} 未授权，自动进行授权...`);
+      logger4.info(`NFT ${tokenId} 未授权，自动进行授权...`);
       await this.approveMarketplace(tokenId);
       await new Promise((resolve) => setTimeout(resolve, 3000));
     } else if (!isApproved) {
@@ -20425,7 +20426,7 @@ class NFTService {
       });
       return approvedAddress.toLowerCase() === NFT_STAKING_ADDRESS.toLowerCase();
     } catch (error) {
-      logger3.error({ error }, "检查质押授权状态失败");
+      logger4.error({ error }, "检查质押授权状态失败");
       return false;
     }
   }
@@ -20467,7 +20468,7 @@ class NFTService {
     }
     const isApproved = await this.checkStakingApproval(tokenId);
     if (!isApproved && autoApprove) {
-      logger3.info(`NFT ${tokenId} 未授权质押合约，自动进行授权...`);
+      logger4.info(`NFT ${tokenId} 未授权质押合约，自动进行授权...`);
       await this.approveStaking(tokenId);
       await new Promise((resolve) => setTimeout(resolve, 3000));
     } else if (!isApproved) {
@@ -20533,7 +20534,7 @@ class NFTService {
       });
       return approvedAddress.toLowerCase() === NFT_LOAN_ADDRESS.toLowerCase();
     } catch (error) {
-      logger3.error({ error }, "检查借贷授权状态失败");
+      logger4.error({ error }, "检查借贷授权状态失败");
       return false;
     }
   }
@@ -20578,7 +20579,7 @@ class NFTService {
     }
     const isApproved = await this.checkLoanApproval(tokenId);
     if (!isApproved && autoApprove) {
-      logger3.info(`NFT ${tokenId} 未授权借贷合约，自动进行授权...`);
+      logger4.info(`NFT ${tokenId} 未授权借贷合约，自动进行授权...`);
       await this.approveLoan(tokenId);
       await new Promise((resolve) => setTimeout(resolve, 3000));
     } else if (!isApproved) {
@@ -20906,12 +20907,9 @@ var init_nft_service = __esm(() => {
 });
 
 // src/index.ts
-import { logger as logger5 } from "@elizaos/core";
+import { logger as logger6 } from "@elizaos/core";
 
 // src/plugin.ts
-init__esm();
-init_accounts();
-init_chains();
 import {
   ModelType,
   Service,
@@ -20990,14 +20988,10 @@ var helloWorldAction = {
     ]
   ]
 };
-var publicClient = createPublicClient({
-  chain: sepolia,
-  transport: http()
-});
 var extractAddressOrPrivateKey = (text) => {
-  const addressRegex3 = /0x[a-fA-F0-9]{40}/g;
+  const addressRegex = /0x[a-fA-F0-9]{40}/g;
   const privateKeyRegex = /0x[a-fA-F0-9]{64}/g;
-  const addressMatch = text.match(addressRegex3);
+  const addressMatch = text.match(addressRegex);
   const privateKeyMatch = text.match(privateKeyRegex);
   if (privateKeyMatch) {
     return { privateKey: privateKeyMatch[0] };
@@ -21079,131 +21073,6 @@ var plugin = {
       return "Never gonna make you cry, never gonna say goodbye, never gonna tell a lie and hurt you...";
     }
   },
-  routes: [
-    {
-      name: "helloworld",
-      path: "/helloworld",
-      type: "GET",
-      handler: async (_req, res) => {
-        res.json({
-          message: "Hello World!"
-        });
-      }
-    },
-    {
-      name: "agents-api",
-      path: "/api/agents",
-      type: "GET",
-      handler: async (req, res) => {
-        try {
-          const agents = [
-            {
-              id: "chain-prophet",
-              name: "Chain Prophet",
-              bio: "专业的区块链和 DeFi 助手，能够查询钱包余额、分析交易数据，并提供区块链相关的技术支持。",
-              capabilities: ["EVM 余额查询", "私钥地址推导", "区块链数据分析", "DeFi 协议支持"],
-              status: "active"
-            }
-          ];
-          res.json(agents);
-        } catch (error) {
-          console.error("获取 Agent 列表失败:", error);
-          res.status(500).json({ error: "获取 Agent 列表失败" });
-        }
-      }
-    },
-    {
-      name: "agent-detail-api",
-      path: "/api/agents/:id",
-      type: "GET",
-      handler: async (req, res) => {
-        try {
-          const { id } = req.params;
-          if (id === "chain-prophet") {
-            const agent = {
-              id: "chain-prophet",
-              name: "Chain Prophet",
-              bio: "专业的区块链和 DeFi 助手，能够查询钱包余额、分析交易数据，并提供区块链相关的技术支持。",
-              capabilities: ["EVM 余额查询", "私钥地址推导", "区块链数据分析", "DeFi 协议支持"],
-              status: "active"
-            };
-            res.json(agent);
-          } else {
-            res.status(404).json({ error: "Agent 未找到" });
-          }
-        } catch (error) {
-          console.error("获取 Agent 信息失败:", error);
-          res.status(500).json({ error: "获取 Agent 信息失败" });
-        }
-      }
-    },
-    {
-      name: "evm-balance-api",
-      path: "/api/evm/balance",
-      type: "POST",
-      handler: async (req, res) => {
-        try {
-          const { address, privateKey } = req.body;
-          if (!address && !privateKey) {
-            return res.status(400).json({
-              success: false,
-              error: "请提供地址或私钥"
-            });
-          }
-          let targetAddress;
-          if (privateKey) {
-            try {
-              const account = privateKeyToAccount(privateKey);
-              targetAddress = account.address;
-            } catch (error) {
-              return res.status(400).json({
-                success: false,
-                error: "私钥格式错误"
-              });
-            }
-          } else {
-            targetAddress = address;
-          }
-          const addressRegex3 = /^0x[a-fA-F0-9]{40}$/;
-          if (!addressRegex3.test(targetAddress)) {
-            return res.status(400).json({
-              success: false,
-              error: "地址格式错误"
-            });
-          }
-          const balance = await publicClient.getBalance({
-            address: targetAddress
-          });
-          const balanceInEth = formatEther(balance);
-          res.json({
-            success: true,
-            address: targetAddress,
-            balance: balanceInEth,
-            network: "Sepolia",
-            wasDerivedFromPrivateKey: !!privateKey
-          });
-        } catch (error) {
-          console.error("查询余额失败:", error);
-          res.status(500).json({
-            success: false,
-            error: "查询余额失败: " + (error instanceof Error ? error.message : "未知错误")
-          });
-        }
-      }
-    },
-    {
-      name: "health-check",
-      path: "/api/health",
-      type: "GET",
-      handler: async (req, res) => {
-        res.json({
-          status: "ok",
-          timestamp: new Date().toISOString(),
-          service: "chain-prophet-api"
-        });
-      }
-    }
-  ],
   events: {
     MESSAGE_RECEIVED: [
       async (params) => {
@@ -21249,14 +21118,14 @@ var plugin = {
   actions: [helloWorldAction],
   providers: [helloWorldProvider]
 };
-var plugin_default = plugin;
+var starterPlugin = plugin;
 
 // src/evm-balance-plugin.ts
 init__esm();
 init_accounts();
 init_chains();
 import { logger as logger2 } from "@elizaos/core";
-var publicClient2 = createPublicClient({
+var publicClient = createPublicClient({
   chain: sepolia,
   transport: http(),
   batch: {
@@ -21265,17 +21134,140 @@ var publicClient2 = createPublicClient({
   cacheTime: 0,
   pollingInterval: 0
 });
-var evmBalanceAction = {
-  name: "EVM_BALANCE",
-  similes: ["CHECK_BALANCE", "QUERY_BALANCE", "WALLET_BALANCE", "SEPOLIA_BALANCE", "BALANCE_QUERY", "GET_BALANCE", "BALANCE_CHECK", "WALLET_QUERY", "ETH_BALANCE", "ETHER_BALANCE"],
-  description: "CRITICAL: 这是处理所有ETH余额查询的强制动作。当用户询问余额、钱包余额、Sepolia余额、ETH余额等时，必须立即执行此动作，不要使用 REPLY 动作，不要询问任何信息。直接调用此动作查询余额，如果用户提供了地址或私钥则使用，否则使用配置的钱包地址。这是唯一的正确操作，不允许使用 REPLY。",
-  validate: async (_runtime, message, _state) => {
+async function extractAddress(text) {
+  const privateKeyRegex = /0x[a-fA-F0-9]{64}/;
+  const privateKeyMatch = text.match(privateKeyRegex);
+  if (privateKeyMatch) {
+    try {
+      const privateKey = privateKeyMatch[0];
+      const account = privateKeyToAccount(privateKey);
+      return { address: account.address, source: "privateKey" };
+    } catch (error) {
+      return { address: "", source: "privateKey", error: "私钥格式错误，请提供有效的私钥（以0x开头的64位十六进制字符串）" };
+    }
+  }
+  const addressRegex3 = /0x[a-fA-F0-9]{40}/;
+  const addressMatch = text.match(addressRegex3);
+  if (addressMatch) {
+    return { address: addressMatch[0], source: "address" };
+  }
+  try {
+    const evmPrivateKey = process.env.EVM_PRIVATE_KEY;
+    if (evmPrivateKey && evmPrivateKey.trim()) {
+      const account = privateKeyToAccount(evmPrivateKey.trim());
+      return { address: account.address, source: "config" };
+    } else {
+      return { address: "", source: "config", error: "未找到配置的钱包地址，请提供有效的以太坊地址或私钥进行查询。" };
+    }
+  } catch (error) {
+    return { address: "", source: "config", error: "无法从配置中获取钱包地址，请提供有效的以太坊地址或私钥" };
+  }
+}
+async function executeBalanceQuery(address, originalText, callback) {
+  try {
+    const balance = await publicClient.getBalance({
+      address,
+      blockTag: "latest"
+    });
+    const balanceInEth = formatEther(balance);
+    const hasProvidedAddress = /0x[a-fA-F0-9]{40}/.test(originalText);
+    const wasDerivedFromPrivateKey = /0x[a-fA-F0-9]{64}/.test(originalText);
+    const wasFromConfig = !hasProvidedAddress && !wasDerivedFromPrivateKey;
+    const timestamp = new Date().toLocaleString("zh-CN", {
+      timeZone: "Asia/Shanghai",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+    let resultText;
+    if (wasDerivedFromPrivateKey) {
+      resultText = `从私钥推导的地址：${address}
+
+余额：${balanceInEth} ETH
+
+网络：Sepolia测试网
+查询时间：${timestamp}`;
+    } else if (wasFromConfig) {
+      resultText = `配置的钱包地址：${address}
+
+余额：${balanceInEth} ETH
+
+网络：Sepolia测试网
+查询时间：${timestamp}`;
+    } else {
+      resultText = `钱包地址 ${address} 的余额：
+${balanceInEth} ETH
+
+网络：Sepolia测试网
+查询时间：${timestamp}`;
+    }
+    await callback({
+      text: resultText,
+      actions: ["EVM_BALANCE"],
+      source: originalText.includes("callback_data") ? undefined : "user"
+    });
+    return {
+      text: `成功查询地址 ${address} 的余额`,
+      values: {
+        success: true,
+        address,
+        balance: balanceInEth
+      },
+      data: {
+        actionName: "EVM_BALANCE",
+        address,
+        balance: balanceInEth,
+        timestamp: Date.now()
+      },
+      success: true
+    };
+  } catch (error) {
+    logger2.error({ error }, "Error executing balance query:");
+    await callback({
+      text: "查询余额时出现错误，请检查地址格式是否正确，或稍后重试。",
+      actions: ["EVM_BALANCE"]
+    });
+    return {
+      text: "查询余额失败",
+      values: {
+        success: false,
+        error: "BALANCE_QUERY_FAILED"
+      },
+      data: {
+        actionName: "EVM_BALANCE",
+        error: error instanceof Error ? error.message : String(error)
+      },
+      success: false,
+      error: error instanceof Error ? error : new Error(String(error))
+    };
+  }
+}
+var confirmBalanceQueryAction = {
+  name: "CONFIRM_BALANCE_QUERY",
+  similes: ["REQUEST_BALANCE_CONFIRMATION", "EVM_BALANCE", "CHECK_BALANCE", "QUERY_BALANCE", "WALLET_BALANCE", "SEPOLIA_BALANCE", "BALANCE_QUERY", "GET_BALANCE", "BALANCE_CHECK", "WALLET_QUERY", "ETH_BALANCE", "ETHER_BALANCE"],
+  description: 'CRITICAL: 这是处理所有ETH余额查询的主要动作。当用户询问余额、钱包余额、Sepolia余额、ETH余额等时，必须立即执行此动作显示确认弹窗。这是唯一的正确操作，不要使用其他余额查询动作。用户确认后会执行实际的余额查询。注意：如果已有待处理的余额查询（state.pendingBalanceQuery 存在），且用户发送"确认"/"取消"文本，应该使用 HANDLE_BALANCE_CONFIRMATION 而不是此动作。',
+  validate: async (_runtime, message, state) => {
+    const callbackData = message.content?.callback_data || message.content?.metadata?.callback_data || message?.metadata?.callback_data || message?.metadata?.buttonCallbackData || message?.callback_data;
+    if (callbackData) {
+      logger2.info("CONFIRM_BALANCE_QUERY: Message has callback_data, skipping confirmation");
+      return false;
+    }
     const text = message.content.text?.toLowerCase() || "";
-    logger2.info("EVM Balance Plugin validate called with text:", text);
-    const addressRegex3 = /0x[a-fA-F0-9]{40}/;
-    const hasAddress = addressRegex3.test(text);
-    const privateKeyRegex = /0x[a-fA-F0-9]{64}/;
-    const hasPrivateKey = privateKeyRegex.test(text);
+    logger2.info("CONFIRM_BALANCE_QUERY validate called with text:", text);
+    if (text === "balance_confirm_yes" || text === "balance_confirm_no") {
+      logger2.info("CONFIRM_BALANCE_QUERY: Text is button callback data, skipping confirmation");
+      return false;
+    }
+    if (state.pendingBalanceQuery) {
+      const isConfirmationText = ["确认", "取消", "是", "否", "yes", "no", "y", "n"].some((keyword) => text.includes(keyword.toLowerCase()));
+      if (isConfirmationText) {
+        logger2.info("CONFIRM_BALANCE_QUERY: Pending query exists and user sent confirmation text, skip - HANDLE_BALANCE_CONFIRMATION should handle this");
+        return false;
+      }
+    }
     const balanceKeywords = [
       "余额",
       "balance",
@@ -21306,152 +21298,397 @@ var evmBalanceAction = {
       "sepolia网络",
       "sepolia network",
       "testnet余额",
-      "testnet balance"
+      "testnet balance",
+      "查余额"
     ];
     const hasBalanceKeyword = balanceKeywords.some((keyword) => text.includes(keyword.toLowerCase()));
+    const addressRegex3 = /0x[a-fA-F0-9]{40}/;
+    const privateKeyRegex = /0x[a-fA-F0-9]{64}/;
+    const hasAddress = addressRegex3.test(text);
+    const hasPrivateKey = privateKeyRegex.test(text);
     const shouldTrigger = hasBalanceKeyword || hasAddress && text.includes("余额") || hasPrivateKey && text.includes("余额");
-    logger2.info({
-      text,
-      hasAddress,
-      hasPrivateKey,
-      hasBalanceKeyword,
-      shouldTrigger
-    }, "EVM Balance Plugin validate result");
-    if (shouldTrigger) {
-      logger2.info("EVM_BALANCE action will be triggered for balance query");
-    }
     return shouldTrigger;
   },
-  handler: async (_runtime, message, _state, _options, callback, _responses) => {
+  handler: async (_runtime, message, state, _options, callback, _responses) => {
     try {
-      logger2.info("Handling EVM_BALANCE action");
+      logger2.info("Handling CONFIRM_BALANCE_QUERY action");
       const text = message.content.text || "";
-      let address;
-      const privateKeyRegex = /0x[a-fA-F0-9]{64}/;
-      const privateKeyMatch = text.match(privateKeyRegex);
-      if (privateKeyMatch) {
-        try {
-          const privateKey = privateKeyMatch[0];
-          const account = privateKeyToAccount(privateKey);
-          address = account.address;
-          logger2.info("Derived address from private key:", address);
-        } catch (error) {
-          await callback({
-            text: "私钥格式错误，请提供有效的私钥（以0x开头的64位十六进制字符串）",
-            actions: ["EVM_BALANCE"],
-            source: message.content.source
-          });
-          return {
-            text: "私钥格式错误",
-            values: { success: false, error: "INVALID_PRIVATE_KEY" },
-            data: { actionName: "EVM_BALANCE", messageId: message.id },
-            success: false
-          };
-        }
-      } else {
-        const addressRegex3 = /0x[a-fA-F0-9]{40}/;
-        const addressMatch = text.match(addressRegex3);
-        if (addressMatch) {
-          address = addressMatch[0];
-          logger2.info("Using provided address:", address);
-        } else {
-          try {
-            const evmPrivateKey = process.env.EVM_PRIVATE_KEY;
-            logger2.info("Checking EVM_PRIVATE_KEY environment variable...");
-            if (evmPrivateKey && evmPrivateKey.trim()) {
-              const account = privateKeyToAccount(evmPrivateKey.trim());
-              address = account.address;
-              logger2.info("Using wallet address from EVM_PRIVATE_KEY:", address);
-            } else {
-              logger2.info("EVM_PRIVATE_KEY not found or empty");
-              await callback({
-                text: "未找到配置的钱包地址，请提供有效的以太坊地址或私钥进行查询。",
-                actions: ["EVM_BALANCE"],
-                source: message.content.source
-              });
-              return {
-                text: "未找到地址或私钥",
-                values: { success: false, error: "INVALID_INPUT" },
-                data: { actionName: "EVM_BALANCE", messageId: message.id },
-                success: false
-              };
-            }
-          } catch (error) {
-            logger2.error({ error }, "Error deriving address from EVM_PRIVATE_KEY");
-            await callback({
-              text: "无法从配置中获取钱包地址，请提供有效的以太坊地址或私钥",
-              actions: ["EVM_BALANCE"],
-              source: message.content.source
-            });
-            return {
-              text: "地址获取失败",
-              values: { success: false, error: "ADDRESS_DERIVATION_FAILED" },
-              data: { actionName: "EVM_BALANCE", messageId: message.id },
-              success: false
-            };
-          }
-        }
+      const addressInfo = await extractAddress(text);
+      let confirmText = "请确认是否查询余额？";
+      if (addressInfo.address) {
+        confirmText = `请确认是否查询以下地址的余额？
+
+地址：${addressInfo.address}
+
+网络：Sepolia测试网`;
+      } else if (addressInfo.error) {
+        await callback?.({
+          text: addressInfo.error,
+          actions: ["CONFIRM_BALANCE_QUERY"],
+          source: message.content.source
+        });
+        return {
+          success: false,
+          text: addressInfo.error,
+          values: {
+            error: "ADDRESS_EXTRACTION_FAILED",
+            errorMessage: addressInfo.error
+          },
+          data: {
+            actionName: "CONFIRM_BALANCE_QUERY",
+            messageId: message.id,
+            error: addressInfo.error
+          },
+          error: new Error(addressInfo.error)
+        };
       }
-      const balance = await publicClient2.getBalance({
-        address,
-        blockTag: "latest"
-      });
-      const balanceInEth = formatEther(balance);
-      const hasProvidedAddress = /0x[a-fA-F0-9]{40}/.test(text);
-      const wasDerivedFromPrivateKey = /0x[a-fA-F0-9]{64}/.test(text);
-      const wasFromConfig = !hasProvidedAddress && !wasDerivedFromPrivateKey;
-      const timestamp = new Date().toLocaleString("zh-CN", {
-        timeZone: "Asia/Shanghai",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit"
-      });
-      let resultText;
-      if (wasDerivedFromPrivateKey) {
-        resultText = `从私钥推导的地址：${address}
-
-余额：${balanceInEth} ETH
-
-网络：Sepolia测试网
-查询时间：${timestamp}`;
-      } else if (wasFromConfig) {
-        resultText = `配置的钱包地址：${address}
-
-余额：${balanceInEth} ETH
-
-网络：Sepolia测试网
-查询时间：${timestamp}`;
-      } else {
-        resultText = `钱包地址 ${address} 的余额：
-${balanceInEth} ETH
-
-网络：Sepolia测试网
-查询时间：${timestamp}`;
+      if (!state.pendingBalanceQuery) {
+        state.pendingBalanceQuery = {};
       }
-      await callback({
-        text: resultText,
-        actions: ["EVM_BALANCE"],
+      state.pendingBalanceQuery = {
+        originalText: text,
+        timestamp: Date.now(),
+        addressInfo
+      };
+      const buttonsContent = [
+        [
+          { text: "✅ 确认", callback_data: "balance_confirm_yes" },
+          { text: "❌ 取消", callback_data: "balance_confirm_no" }
+        ]
+      ];
+      await callback?.({
+        text: confirmText,
+        buttons: buttonsContent,
+        actions: ["CONFIRM_BALANCE_QUERY"],
+        source: message.content.source,
+        metadata: {
+          buttons: buttonsContent
+        }
+      });
+      return {
+        success: true,
+        text: "等待用户确认...",
+        values: {
+          pendingConfirmation: true,
+          originalQuery: text,
+          address: addressInfo.address
+        },
+        data: {
+          actionName: "CONFIRM_BALANCE_QUERY",
+          messageId: message.id,
+          addressInfo,
+          buttons: buttonsContent
+        }
+      };
+    } catch (error) {
+      logger2.error({ error }, "Error in CONFIRM_BALANCE_QUERY action:");
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await callback?.({
+        text: `显示确认弹窗时出现错误：${errorMessage}
+
+请稍后重试。`,
+        actions: ["CONFIRM_BALANCE_QUERY"],
         source: message.content.source
       });
       return {
-        text: `成功查询地址 ${address} 的余额`,
+        success: false,
+        text: "确认请求失败",
         values: {
-          success: true,
-          address,
-          balance: balanceInEth
+          error: "CONFIRMATION_REQUEST_FAILED",
+          errorMessage
         },
         data: {
-          actionName: "EVM_BALANCE",
-          messageId: message.id,
-          address,
-          balance: balanceInEth,
-          timestamp: Date.now()
+          actionName: "CONFIRM_BALANCE_QUERY",
+          error: errorMessage,
+          messageId: message.id
         },
-        success: true
+        error: error instanceof Error ? error : new Error(errorMessage)
       };
+    }
+  },
+  examples: []
+};
+var handleBalanceConfirmationAction = {
+  name: "HANDLE_BALANCE_CONFIRMATION",
+  similes: [
+    "PROCESS_BALANCE_CONFIRMATION",
+    "确认",
+    "取消",
+    "确认余额查询",
+    "取消余额查询",
+    "CONFIRM_BALANCE",
+    "CANCEL_BALANCE",
+    "BALANCE_CONFIRMED",
+    "BALANCE_CANCELLED",
+    "确认查询",
+    "取消查询",
+    "是",
+    "否",
+    "yes",
+    "no"
+  ],
+  description: 'ABSOLUTE PRIORITY - HANDLE_BALANCE_CONFIRMATION: 这是处理余额查询确认响应的唯一动作。当用户发送"确认"/"取消"文本或点击确认/取消按钮时，必须立即执行此动作，而不是 REPLY 或 CONFIRM_BALANCE_QUERY。此动作会检查待处理的余额查询并执行实际的余额查询或取消操作。当有待处理的余额查询（state.pendingBalanceQuery 存在）且用户发送确认/取消相关文本时，此动作优先级最高，必须被优先选择。如果此动作的 validate 返回 true，必须执行此动作，不要使用其他任何动作。',
+  validate: async (runtime, message, state) => {
+    const callbackData = message.content?.callback_data || message.content?.metadata?.callback_data || message?.metadata?.callback_data || message?.metadata?.buttonCallbackData || message?.callback_data;
+    const text = (message.content.text || "").toLowerCase().trim();
+    const isButtonYes = callbackData === "balance_confirm_yes" || text === "balance_confirm_yes";
+    const isButtonNo = callbackData === "balance_confirm_no" || text === "balance_confirm_no";
+    const isTextYes = text === "确认" || text === "是" || text === "yes" || text === "y" || text.includes("确认");
+    const isTextNo = text === "取消" || text === "否" || text === "no" || text === "n" || text.includes("取消");
+    if (!isButtonYes && !isButtonNo && !isTextYes && !isTextNo) {
+      return false;
+    }
+    let hasPendingQuery = !!state.pendingBalanceQuery;
+    if (!hasPendingQuery && message.roomId) {
+      try {
+        const recentMemories = await runtime.getMemories({
+          roomId: message.roomId,
+          count: 10,
+          unique: true,
+          tableName: "messages"
+        });
+        const confirmationMessage = recentMemories.find((mem) => {
+          const memContent = mem.content?.text || "";
+          const memAsAny = mem;
+          const memActions = mem.content?.actions || memAsAny?.data?.actions || [];
+          const memButtons = mem.content?.buttons || mem.content?.metadata?.buttons;
+          return memActions.includes("CONFIRM_BALANCE_QUERY") || memContent.includes("请确认是否查询") || memContent.includes("请确认") || memButtons && Array.isArray(memButtons) && memButtons.some((row) => row.some((btn) => btn.callback_data === "balance_confirm_yes" || btn.callback_data === "balance_confirm_no"));
+        });
+        if (confirmationMessage) {
+          hasPendingQuery = true;
+          logger2.info({}, "HANDLE_BALANCE_CONFIRMATION validate: 从消息记忆中找到了确认请求");
+        }
+      } catch (error) {
+        logger2.error({ error }, "HANDLE_BALANCE_CONFIRMATION validate: 获取消息记忆时出错");
+      }
+    }
+    return hasPendingQuery && (isButtonYes || isButtonNo || isTextYes || isTextNo);
+  },
+  handler: async (runtime, message, state, _options, callback, _responses) => {
+    try {
+      const callbackData = message.content?.callback_data || message.content?.metadata?.callback_data || message?.metadata?.callback_data || message?.metadata?.buttonCallbackData || message?.callback_data;
+      const text = (message.content.text || "").toLowerCase().trim();
+      const isConfirm = callbackData === "balance_confirm_yes" || text === "balance_confirm_yes" || text === "确认" || text === "是" || text === "yes" || text === "y" || text.includes("确认");
+      const isCancel = callbackData === "balance_confirm_no" || text === "balance_confirm_no" || text === "取消" || text === "否" || text === "no" || text === "n" || text.includes("取消");
+      if (isCancel) {
+        await callback?.({
+          text: "操作已取消",
+          actions: ["HANDLE_BALANCE_CONFIRMATION"],
+          source: message.content.source
+        });
+        if (state.pendingBalanceQuery) {
+          delete state.pendingBalanceQuery;
+        }
+        return {
+          success: true,
+          text: "用户取消余额查询",
+          values: {
+            confirmed: false,
+            cancelled: true
+          },
+          data: {
+            actionName: "HANDLE_BALANCE_CONFIRMATION",
+            messageId: message.id,
+            cancelled: true
+          }
+        };
+      }
+      if (isConfirm) {
+        let pendingQuery = state.pendingBalanceQuery;
+        if ((!pendingQuery || !pendingQuery.originalText) && message.roomId) {
+          try {
+            const recentMemories = await runtime.getMemories({
+              roomId: message.roomId,
+              count: 20,
+              unique: true,
+              tableName: "messages"
+            });
+            const userQueryMessage = recentMemories.find((mem) => {
+              const memAsAny = mem;
+              const messageAsAny = message;
+              const isUserMessage = memAsAny.userId && memAsAny.userId === messageAsAny.userId && memAsAny.userId !== messageAsAny.agentId;
+              if (!isUserMessage) {
+                const source = mem.content?.source;
+                const isNotAgent = source !== "agent" && source !== "assistant";
+                if (!isNotAgent)
+                  return false;
+              }
+              const memText = mem.content?.text || "";
+              const hasAddress = /0x[a-fA-F0-9]{40}/.test(memText);
+              const hasPrivateKey = /0x[a-fA-F0-9]{64}/.test(memText);
+              const hasBalanceKeyword = /余额|balance|查询余额|check balance/i.test(memText);
+              return (hasAddress || hasPrivateKey) && hasBalanceKeyword;
+            });
+            const confirmationMessage = recentMemories.find((mem) => {
+              const memAsAny = mem;
+              const memActions = mem.content?.actions || memAsAny?.data?.actions || [];
+              const memButtons = mem.content?.buttons || mem.content?.metadata?.buttons;
+              const memContent = mem.content?.text || "";
+              return memActions.includes("CONFIRM_BALANCE_QUERY") || memContent.includes("请确认是否查询") || memButtons && Array.isArray(memButtons) && memButtons.some((row) => row.some((btn) => btn.callback_data === "balance_confirm_yes" || btn.callback_data === "balance_confirm_no"));
+            });
+            if (userQueryMessage) {
+              const originalText2 = userQueryMessage.content?.text || "";
+              const addressInfo2 = await extractAddress(originalText2);
+              pendingQuery = {
+                originalText: originalText2,
+                timestamp: userQueryMessage.createdAt ? new Date(userQueryMessage.createdAt).getTime() : Date.now(),
+                addressInfo: addressInfo2
+              };
+            }
+          } catch (error) {
+            logger2.error({ error }, "HANDLE_BALANCE_CONFIRMATION: 从消息记忆中恢复查询信息时出错");
+          }
+        }
+        if (!pendingQuery || !pendingQuery.originalText) {
+          await callback?.({
+            text: "未找到查询信息，请重新发起查询请求。",
+            actions: ["HANDLE_BALANCE_CONFIRMATION"],
+            source: message.content.source
+          });
+          return {
+            success: false,
+            text: "查询信息丢失",
+            values: {
+              error: "PENDING_QUERY_NOT_FOUND"
+            },
+            data: {
+              actionName: "HANDLE_BALANCE_CONFIRMATION",
+              messageId: message.id
+            },
+            error: new Error("PENDING_QUERY_NOT_FOUND")
+          };
+        }
+        const originalText = pendingQuery.originalText;
+        let addressInfo = pendingQuery.addressInfo;
+        if (!addressInfo || !addressInfo.address) {
+          await callback?.({
+            text: "正在提取地址信息...",
+            actions: ["HANDLE_BALANCE_CONFIRMATION"],
+            source: message.content.source
+          });
+          addressInfo = await extractAddress(originalText);
+        }
+        if (addressInfo.error || !addressInfo.address) {
+          await callback?.({
+            text: addressInfo.error || "无法获取钱包地址，请重新发起查询。",
+            actions: ["HANDLE_BALANCE_CONFIRMATION"],
+            source: message.content.source
+          });
+          return {
+            success: false,
+            text: addressInfo.error || "地址获取失败",
+            values: {
+              error: "ADDRESS_EXTRACTION_FAILED",
+              errorMessage: addressInfo.error
+            },
+            data: {
+              actionName: "HANDLE_BALANCE_CONFIRMATION",
+              messageId: message.id,
+              error: addressInfo.error
+            },
+            error: new Error(addressInfo.error || "ADDRESS_EXTRACTION_FAILED")
+          };
+        }
+        delete state.pendingBalanceQuery;
+        await callback?.({
+          text: `正在查询地址 ${addressInfo.address} 的余额...`,
+          actions: ["HANDLE_BALANCE_CONFIRMATION"],
+          source: message.content.source
+        });
+        const result = await executeBalanceQuery(addressInfo.address, originalText, callback);
+        return {
+          ...result,
+          success: result.success,
+          text: result.text || "余额查询完成",
+          values: {
+            ...result.values,
+            confirmed: true,
+            address: addressInfo.address
+          },
+          data: {
+            ...result.data,
+            confirmed: true,
+            addressInfo
+          }
+        };
+      }
+      await callback?.({
+        text: "未知的确认响应，请重新发起查询。",
+        actions: ["HANDLE_BALANCE_CONFIRMATION"],
+        source: message.content.source
+      });
+      return {
+        success: false,
+        text: "未知的确认响应",
+        values: {
+          error: "UNKNOWN_CONFIRMATION_RESPONSE"
+        },
+        data: {
+          actionName: "HANDLE_BALANCE_CONFIRMATION",
+          messageId: message.id,
+          callbackData
+        },
+        error: new Error("UNKNOWN_CONFIRMATION_RESPONSE")
+      };
+    } catch (error) {
+      logger2.error({ error }, "Error in HANDLE_BALANCE_CONFIRMATION action:");
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await callback?.({
+        text: `处理确认响应时出现错误：${errorMessage}
+
+请稍后重试。`,
+        actions: ["HANDLE_BALANCE_CONFIRMATION"],
+        source: message.content.source
+      });
+      return {
+        success: false,
+        text: "确认处理失败",
+        values: {
+          error: "CONFIRMATION_HANDLING_FAILED",
+          errorMessage
+        },
+        data: {
+          actionName: "HANDLE_BALANCE_CONFIRMATION",
+          error: errorMessage,
+          messageId: message.id
+        },
+        error: error instanceof Error ? error : new Error(errorMessage)
+      };
+    }
+  },
+  examples: []
+};
+var evmBalanceAction = {
+  name: "EVM_BALANCE",
+  similes: [],
+  description: "DEPRECATED: 此动作已被弃用，不应该被直接调用。请使用 CONFIRM_BALANCE_QUERY 动作来处理余额查询请求。",
+  validate: async (_runtime, message, _state) => {
+    if (message.content.callback_data) {
+      logger2.info("EVM_BALANCE: Message has callback_data, skipping direct execution");
+      return false;
+    }
+    logger2.info("EVM_BALANCE validate called, but returning false to force confirmation flow");
+    return false;
+  },
+  handler: async (_runtime, message, _state, _options, callback, _responses) => {
+    try {
+      logger2.info("Handling EVM_BALANCE action (legacy handler)");
+      const text = message.content.text || "";
+      const addressInfo = await extractAddress(text);
+      if (addressInfo.error || !addressInfo.address) {
+        await callback({
+          text: addressInfo.error || "无法获取钱包地址",
+          actions: ["EVM_BALANCE"],
+          source: message.content.source
+        });
+        return {
+          text: addressInfo.error || "地址获取失败",
+          values: { success: false, error: addressInfo.error || "ADDRESS_EXTRACTION_FAILED" },
+          data: { actionName: "EVM_BALANCE", messageId: message.id },
+          success: false
+        };
+      }
+      return await executeBalanceQuery(addressInfo.address, text, callback);
     } catch (error) {
       logger2.error({ error }, "Error in EVM_BALANCE action:");
       await callback({
@@ -21572,15 +21809,878 @@ ${balanceInEth} ETH
 };
 var evmBalancePlugin = {
   name: "EVM Balance Plugin",
-  description: "EVM钱包余额查询插件",
-  priority: 1000,
-  actions: [evmBalanceAction]
+  description: "EVM钱包余额查询插件（带确认机制）",
+  priority: 1e4,
+  actions: [
+    handleBalanceConfirmationAction,
+    confirmBalanceQueryAction,
+    evmBalanceAction
+  ]
+};
+
+// src/evm-transfer-plugin.ts
+init__esm();
+init_accounts();
+init_chains();
+import { logger as logger3 } from "@elizaos/core";
+var publicClient2 = createPublicClient({
+  chain: sepolia,
+  transport: http(),
+  batch: {
+    multicall: false
+  },
+  cacheTime: 0,
+  pollingInterval: 0
+});
+function extractTransferParams(text) {
+  const listPattern = /([^\s（]+)（(0x[a-fA-F0-9]{40})\+(whitelist|blacklist)）/;
+  const listMatch = text.match(listPattern);
+  let to = null;
+  let listType = null;
+  let originalName = undefined;
+  if (listMatch) {
+    originalName = listMatch[1].trim();
+    to = listMatch[2];
+    const listTypeStr = listMatch[3].toLowerCase();
+    listType = listTypeStr === "whitelist" ? "whitelist" : "blacklist";
+  } else {
+    const addressRegex3 = /0x[a-fA-F0-9]{40}/g;
+    const addresses = text.match(addressRegex3) || [];
+    to = addresses.length > 0 ? addresses[addresses.length - 1] : null;
+  }
+  const amountPatterns = [
+    /(\d+\.?\d*)\s*(?:ETH|ether|以太坊)/i,
+    /(\d+\.?\d*)\s*(?:wei)/i,
+    /发送\s*(\d+\.?\d*)\s*(?:ETH|ether|以太坊)?/i,
+    /transfer\s+(\d+\.?\d*)\s*(?:ETH|ether)?/i,
+    /send\s+(\d+\.?\d*)\s*(?:ETH|ether)?/i,
+    /(\d+\.?\d*)\s*to\s*0x[a-fA-F0-9]{40}/i
+  ];
+  let amount = null;
+  for (const pattern of amountPatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      amount = match[1];
+      break;
+    }
+  }
+  if (!amount) {
+    const numberMatch = text.match(/(\d+\.?\d*)/);
+    if (numberMatch && numberMatch[1]) {
+      const num2 = parseFloat(numberMatch[1]);
+      if (num2 >= 0.001 && num2 <= 1000) {
+        amount = numberMatch[1];
+      }
+    }
+  }
+  return { amount, to, listType, originalName, error: undefined };
+}
+function getWalletAccount() {
+  const evmPrivateKey = process.env.EVM_PRIVATE_KEY;
+  if (!evmPrivateKey || !evmPrivateKey.trim()) {
+    throw new Error("未配置钱包私钥，请设置 EVM_PRIVATE_KEY 环境变量");
+  }
+  return privateKeyToAccount(evmPrivateKey.trim());
+}
+async function executeTransfer(to, amount, originalText, callback) {
+  try {
+    if (!isAddress(to)) {
+      await callback({
+        text: `无效的接收地址：${to}。请提供有效的以太坊地址（0x开头的40位十六进制字符串）。`,
+        actions: ["EVM_TRANSFER"]
+      });
+      return {
+        success: false,
+        text: "地址格式错误",
+        values: {
+          error: "INVALID_ADDRESS",
+          address: to
+        },
+        error: new Error("INVALID_ADDRESS")
+      };
+    }
+    let amountInWei;
+    try {
+      amountInWei = parseEther(amount);
+    } catch (error) {
+      await callback({
+        text: `无效的金额格式：${amount}。请提供有效的数字（例如：0.1 或 1.5）。`,
+        actions: ["EVM_TRANSFER"]
+      });
+      return {
+        success: false,
+        text: "金额格式错误",
+        values: {
+          error: "INVALID_AMOUNT",
+          amount
+        },
+        error: new Error("INVALID_AMOUNT")
+      };
+    }
+    const account = getWalletAccount();
+    const walletClient = createWalletClient({
+      account,
+      chain: sepolia,
+      transport: http()
+    });
+    const balance = await publicClient2.getBalance({
+      address: account.address
+    });
+    let gasPrice;
+    try {
+      gasPrice = await publicClient2.getGasPrice();
+    } catch (error) {
+      logger3.error({ error }, "获取 Gas 价格失败，使用默认值");
+      gasPrice = parseEther("0.00000000002");
+    }
+    let gasLimit = 21000n;
+    try {
+      const estimatedGas = await publicClient2.estimateGas({
+        account,
+        to,
+        value: amountInWei
+      });
+      gasLimit = estimatedGas;
+    } catch (error) {
+      logger3.error({ error }, "Gas 估算失败，使用默认值");
+    }
+    const totalCost = amountInWei + gasPrice * gasLimit;
+    if (balance < totalCost) {
+      const balanceInEth = formatEther(balance);
+      const totalCostInEth = formatEther(totalCost);
+      await callback({
+        text: `余额不足！
+
+钱包余额：${balanceInEth} ETH
+转账金额：${formatEther(amountInWei)} ETH
+Gas 费用：约 ${formatEther(gasPrice * gasLimit)} ETH
+总计需要：${totalCostInEth} ETH
+
+请确保钱包中有足够的 ETH 用于转账和 Gas 费用。`,
+        actions: ["EVM_TRANSFER"]
+      });
+      return {
+        success: false,
+        text: "余额不足",
+        values: {
+          error: "INSUFFICIENT_BALANCE",
+          balance: balanceInEth,
+          required: totalCostInEth
+        },
+        error: new Error("INSUFFICIENT_BALANCE")
+      };
+    }
+    await callback({
+      text: `正在执行转账...
+
+发送地址：${account.address}
+接收地址：${to}
+金额：${formatEther(amountInWei)} ETH
+网络：Sepolia测试网`,
+      actions: ["EVM_TRANSFER"]
+    });
+    const hash3 = await walletClient.sendTransaction({
+      to,
+      value: amountInWei,
+      gas: gasLimit,
+      gasPrice
+    });
+    await callback({
+      text: `交易已发送！正在等待确认...
+
+交易哈希：${hash3}
+
+您可以在区块浏览器中查看交易状态：
+https://sepolia.etherscan.io/tx/${hash3}`,
+      actions: ["EVM_TRANSFER"]
+    });
+    let receipt;
+    try {
+      receipt = await publicClient2.waitForTransactionReceipt({
+        hash: hash3,
+        timeout: 60000
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isRpcError = errorMessage.includes("429") || errorMessage.includes("rate limit") || errorMessage.includes("HTTP request failed") || errorMessage.includes("thirdweb");
+      if (isRpcError) {
+        const timestamp2 = new Date().toLocaleString("zh-CN", {
+          timeZone: "Asia/Shanghai",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit"
+        });
+        logger3.warn({ error, hash: hash3 }, "等待交易确认时遇到 RPC 速率限制，但交易已成功发送");
+        await callback({
+          text: `✅ 交易已成功发送！
+
+由于 RPC 速率限制，无法立即获取交易确认状态。
+
+交易详情：
+发送地址：${account.address}
+接收地址：${to}
+金额：${formatEther(amountInWei)} ETH
+交易哈希：${hash3}
+网络：Sepolia测试网
+发送时间：${timestamp2}
+
+请到区块浏览器查看交易状态：
+https://sepolia.etherscan.io/tx/${hash3}
+
+\uD83D\uDCA1 提示：如果交易长时间未确认，可能需要检查网络状态或重试。`,
+          actions: ["EVM_TRANSFER"]
+        });
+        return {
+          success: true,
+          text: `交易已成功发送 ${formatEther(amountInWei)} ETH 到 ${to}`,
+          values: {
+            success: true,
+            to,
+            amount: formatEther(amountInWei),
+            hash: hash3,
+            rpcError: true
+          },
+          data: {
+            actionName: "EVM_TRANSFER",
+            to,
+            amount: formatEther(amountInWei),
+            hash: hash3,
+            timestamp: Date.now(),
+            rpcError: true,
+            error: errorMessage
+          }
+        };
+      } else {
+        logger3.error({ error, hash: hash3 }, "等待交易确认时出错");
+        await callback({
+          text: `⚠️ 交易已发送，但无法确认状态
+
+交易哈希：${hash3}
+错误：${errorMessage}
+
+请到区块浏览器手动查看交易状态：
+https://sepolia.etherscan.io/tx/${hash3}
+
+如果交易长时间未确认，可能需要检查网络状态。`,
+          actions: ["EVM_TRANSFER"]
+        });
+        return {
+          success: true,
+          text: `交易已发送 ${formatEther(amountInWei)} ETH 到 ${to}（无法确认状态）`,
+          values: {
+            success: true,
+            to,
+            amount: formatEther(amountInWei),
+            hash: hash3,
+            confirmationError: true
+          },
+          data: {
+            actionName: "EVM_TRANSFER",
+            to,
+            amount: formatEther(amountInWei),
+            hash: hash3,
+            timestamp: Date.now(),
+            confirmationError: true,
+            error: errorMessage
+          }
+        };
+      }
+    }
+    const timestamp = new Date().toLocaleString("zh-CN", {
+      timeZone: "Asia/Shanghai",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+    if (receipt.status === "success") {
+      const resultText = `✅ 转账成功！
+
+发送地址：${account.address}
+接收地址：${to}
+金额：${formatEther(amountInWei)} ETH
+交易哈希：${hash3}
+区块号：${receipt.blockNumber}
+Gas 使用：${receipt.gasUsed.toString()}
+网络：Sepolia测试网
+时间：${timestamp}
+
+查看交易：https://sepolia.etherscan.io/tx/${hash3}`;
+      await callback({
+        text: resultText,
+        actions: ["EVM_TRANSFER"]
+      });
+      return {
+        success: true,
+        text: `成功转账 ${formatEther(amountInWei)} ETH 到 ${to}`,
+        values: {
+          success: true,
+          to,
+          amount: formatEther(amountInWei),
+          hash: hash3,
+          blockNumber: receipt.blockNumber.toString()
+        },
+        data: {
+          actionName: "EVM_TRANSFER",
+          to,
+          amount: formatEther(amountInWei),
+          hash: hash3,
+          blockNumber: receipt.blockNumber.toString(),
+          gasUsed: receipt.gasUsed.toString(),
+          timestamp: Date.now()
+        }
+      };
+    } else {
+      await callback({
+        text: `❌ 转账失败！
+
+交易哈希：${hash3}
+状态：失败
+区块号：${receipt.blockNumber}
+
+请检查交易详情：https://sepolia.etherscan.io/tx/${hash3}`,
+        actions: ["EVM_TRANSFER"]
+      });
+      return {
+        success: false,
+        text: "转账失败",
+        values: {
+          error: "TRANSACTION_FAILED",
+          hash: hash3
+        },
+        error: new Error("TRANSACTION_FAILED")
+      };
+    }
+  } catch (error) {
+    logger3.error({ error }, "Error executing transfer:");
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await callback({
+      text: `转账时出现错误：${errorMessage}
+
+请检查：
+1. 接收地址格式是否正确
+2. 转账金额是否有效
+3. 钱包余额是否充足
+4. 网络连接是否正常`,
+      actions: ["EVM_TRANSFER"]
+    });
+    return {
+      text: "转账失败",
+      values: {
+        success: false,
+        error: "TRANSFER_FAILED",
+        errorMessage
+      },
+      data: {
+        actionName: "EVM_TRANSFER",
+        error: errorMessage
+      },
+      success: false,
+      error: error instanceof Error ? error : new Error(String(error))
+    };
+  }
+}
+var confirmTransferAction = {
+  name: "CONFIRM_TRANSFER",
+  similes: [
+    "EVM_TRANSFER",
+    "TRANSFER",
+    "SEND_ETH",
+    "SEND_TOKEN",
+    "转账",
+    "发送",
+    "转ETH",
+    "发送ETH",
+    "send",
+    "transfer",
+    "send eth",
+    "transfer eth",
+    "发送以太坊",
+    "转账以太坊"
+  ],
+  description: 'CRITICAL: 这是处理所有ETH转账的主要动作。当用户要求转账、发送ETH、转ETH等时，必须立即执行此动作显示确认弹窗。这是唯一的正确操作，不要使用其他转账动作。用户确认后会执行实际的转账操作。注意：如果已有待处理的转账（state.pendingTransfer 存在），且用户发送"确认"/"取消"文本，应该使用 HANDLE_TRANSFER_CONFIRMATION 而不是此动作。',
+  validate: async (_runtime, message, state) => {
+    const callbackData = message.content?.callback_data || message.content?.metadata?.callback_data || message?.metadata?.callback_data || message?.metadata?.buttonCallbackData || message?.callback_data;
+    if (callbackData) {
+      logger3.info("CONFIRM_TRANSFER: Message has callback_data, skipping confirmation");
+      return false;
+    }
+    const text = message.content.text?.toLowerCase() || "";
+    logger3.info("CONFIRM_TRANSFER validate called with text:", text);
+    if (text === "transfer_confirm_yes" || text === "transfer_confirm_no") {
+      logger3.info("CONFIRM_TRANSFER: Text is button callback data, skipping confirmation");
+      return false;
+    }
+    if (state.pendingTransfer) {
+      const isConfirmationText = ["确认", "取消", "是", "否", "yes", "no", "y", "n"].some((keyword) => text.includes(keyword.toLowerCase()));
+      if (isConfirmationText) {
+        logger3.info("CONFIRM_TRANSFER: Pending transfer exists and user sent confirmation text, skip - HANDLE_TRANSFER_CONFIRMATION should handle this");
+        return false;
+      }
+    }
+    const transferKeywords = [
+      "转账",
+      "发送",
+      "transfer",
+      "send",
+      "转eth",
+      "发送eth",
+      "send eth",
+      "transfer eth",
+      "转以太坊",
+      "发送以太坊",
+      "转eth到",
+      "send to",
+      "转给",
+      "发给",
+      "转",
+      "给"
+    ];
+    const hasTransferKeyword = transferKeywords.some((keyword) => text.includes(keyword.toLowerCase()));
+    const addressRegex3 = /0x[a-fA-F0-9]{40}/;
+    const hasAddress = addressRegex3.test(text);
+    const amountPatterns = [
+      /\d+\.?\d*\s*(?:ETH|ether|以太坊)/i,
+      /转\s*\d+\.?\d*\s*(?:eth|ether|以太坊)?/i,
+      /发送\s*\d+\.?\d*/i,
+      /transfer\s+\d+\.?\d*/i,
+      /send\s+\d+\.?\d*/i,
+      /\d+\.?\d*\s*(?:eth|ether)/i
+    ];
+    const hasAmount = amountPatterns.some((pattern) => pattern.test(text));
+    const chineseTransferPattern = /转\s*\d+\.?\d*\s*(?:eth|ether|以太坊)?\s*给\s*0x[a-fA-F0-9]{40}/i;
+    const matchesChinesePattern = chineseTransferPattern.test(text);
+    const chineseSimplePattern = /转\s*\d+\.?\d*/i.test(text) && (text.includes("给") || text.includes("到") || text.includes("to")) && hasAddress;
+    const shouldTrigger = hasTransferKeyword && hasAddress && (hasAmount || text.includes("到") || text.includes("to") || text.includes("给")) || matchesChinesePattern || chineseSimplePattern;
+    return shouldTrigger;
+  },
+  handler: async (_runtime, message, state, _options, callback, _responses) => {
+    try {
+      logger3.info("Handling CONFIRM_TRANSFER action");
+      const text = message.content.text || "";
+      const transferParams = extractTransferParams(text);
+      if (transferParams.error || !transferParams.to || !transferParams.amount) {
+        let errorMsg = `无法解析转账信息。请提供以下信息：
+1. 接收地址（0x开头的40位十六进制）
+2. 转账金额（例如：0.1 ETH）
+
+示例：发送 0.1 ETH 到 0x742d35Cc6634C0532925a3b844Bc454e4438f44e`;
+        if (!transferParams.to) {
+          errorMsg = "未找到接收地址。请提供有效的以太坊地址（0x开头的40位十六进制字符串）。";
+        } else if (!transferParams.amount) {
+          errorMsg = "未找到转账金额。请指定要转账的 ETH 数量（例如：0.1 或 1.5）。";
+        }
+        await callback?.({
+          text: errorMsg,
+          actions: ["CONFIRM_TRANSFER"],
+          source: message.content.source
+        });
+        return {
+          success: false,
+          text: errorMsg,
+          values: {
+            error: "PARAMETER_EXTRACTION_FAILED",
+            errorMessage: errorMsg
+          },
+          data: {
+            actionName: "CONFIRM_TRANSFER",
+            messageId: message.id,
+            error: errorMsg
+          },
+          error: new Error(errorMsg)
+        };
+      }
+      if (!isAddress(transferParams.to)) {
+        await callback?.({
+          text: `无效的接收地址：${transferParams.to}。请提供有效的以太坊地址（0x开头的40位十六进制字符串）。`,
+          actions: ["CONFIRM_TRANSFER"],
+          source: message.content.source
+        });
+        return {
+          success: false,
+          text: "地址格式错误",
+          values: {
+            error: "INVALID_ADDRESS",
+            address: transferParams.to
+          },
+          error: new Error("INVALID_ADDRESS")
+        };
+      }
+      const amountNum = parseFloat(transferParams.amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        await callback?.({
+          text: `无效的转账金额：${transferParams.amount}。请提供有效的正数（例如：0.1 或 1.5）。`,
+          actions: ["CONFIRM_TRANSFER"],
+          source: message.content.source
+        });
+        return {
+          success: false,
+          text: "金额格式错误",
+          values: {
+            error: "INVALID_AMOUNT",
+            amount: transferParams.amount
+          },
+          error: new Error("INVALID_AMOUNT")
+        };
+      }
+      let fromAddress;
+      try {
+        const account = getWalletAccount();
+        fromAddress = account.address;
+      } catch (error) {
+        await callback?.({
+          text: "无法获取发送钱包地址。请确保已配置 EVM_PRIVATE_KEY 环境变量。",
+          actions: ["CONFIRM_TRANSFER"],
+          source: message.content.source
+        });
+        return {
+          success: false,
+          text: "钱包配置错误",
+          values: {
+            error: "WALLET_CONFIG_ERROR"
+          },
+          error: new Error("WALLET_CONFIG_ERROR")
+        };
+      }
+      let confirmText = `请确认以下转账信息：
+
+发送地址：${fromAddress}
+接收地址：${transferParams.to}`;
+      if (transferParams.originalName) {
+        confirmText += `
+接收人：${transferParams.originalName}`;
+      }
+      confirmText += `
+金额：${transferParams.amount} ETH
+网络：Sepolia测试网
+
+`;
+      if (transferParams.listType === "whitelist") {
+        confirmText += `✅ 该地址在白名单中，可以安全转账。
+⚠️ 请仔细核对接收地址，转账一旦完成无法撤销！`;
+      } else if (transferParams.listType === "blacklist") {
+        confirmText += `\uD83D\uDEA8 严重警告：强烈建议不要向此地址转账！
+\uD83D\uDEA8 转账可能存在风险，请谨慎操作！
+⚠️ 请仔细核对接收地址，转账一旦完成无法撤销！`;
+      } else {
+        confirmText += `⚠️ 请仔细核对接收地址，确认无误后再继续。
+⚠️ 转账一旦完成无法撤销！`;
+      }
+      if (!state.pendingTransfer) {
+        state.pendingTransfer = {};
+      }
+      state.pendingTransfer = {
+        originalText: text,
+        timestamp: Date.now(),
+        to: transferParams.to,
+        amount: transferParams.amount,
+        listType: transferParams.listType,
+        originalName: transferParams.originalName
+      };
+      const buttonsContent = [
+        [
+          { text: "✅ 确认转账", callback_data: "transfer_confirm_yes" },
+          { text: "❌ 取消", callback_data: "transfer_confirm_no" }
+        ]
+      ];
+      await callback?.({
+        text: confirmText,
+        buttons: buttonsContent,
+        actions: ["CONFIRM_TRANSFER"],
+        source: message.content.source,
+        metadata: {
+          buttons: buttonsContent
+        }
+      });
+      return {
+        success: true,
+        text: "等待用户确认转账...",
+        values: {
+          pendingConfirmation: true,
+          originalQuery: text,
+          to: transferParams.to,
+          amount: transferParams.amount
+        },
+        data: {
+          actionName: "CONFIRM_TRANSFER",
+          messageId: message.id,
+          to: transferParams.to,
+          amount: transferParams.amount,
+          buttons: buttonsContent
+        }
+      };
+    } catch (error) {
+      logger3.error({ error }, "Error in CONFIRM_TRANSFER action:");
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await callback?.({
+        text: `显示确认弹窗时出现错误：${errorMessage}
+
+请稍后重试。`,
+        actions: ["CONFIRM_TRANSFER"],
+        source: message.content.source
+      });
+      return {
+        success: false,
+        text: "确认请求失败",
+        values: {
+          error: "CONFIRMATION_REQUEST_FAILED",
+          errorMessage
+        },
+        data: {
+          actionName: "CONFIRM_TRANSFER",
+          error: errorMessage,
+          messageId: message.id
+        },
+        error: error instanceof Error ? error : new Error(errorMessage)
+      };
+    }
+  },
+  examples: []
+};
+var handleTransferConfirmationAction = {
+  name: "HANDLE_TRANSFER_CONFIRMATION",
+  similes: [
+    "PROCESS_TRANSFER_CONFIRMATION",
+    "确认转账",
+    "取消转账",
+    "CONFIRM_TRANSFER",
+    "CANCEL_TRANSFER",
+    "TRANSFER_CONFIRMED",
+    "TRANSFER_CANCELLED",
+    "确认",
+    "取消",
+    "是",
+    "否",
+    "yes",
+    "no"
+  ],
+  description: 'ABSOLUTE PRIORITY - HANDLE_TRANSFER_CONFIRMATION: 这是处理转账确认响应的唯一动作。当用户发送"确认"/"取消"文本或点击确认/取消按钮时，必须立即执行此动作，而不是 REPLY 或 CONFIRM_TRANSFER。此动作会检查待处理的转账并执行实际的转账或取消操作。',
+  validate: async (runtime, message, state) => {
+    const callbackData = message.content?.callback_data || message.content?.metadata?.callback_data || message?.metadata?.callback_data || message?.metadata?.buttonCallbackData || message?.callback_data;
+    const text = (message.content.text || "").toLowerCase().trim();
+    const isButtonYes = callbackData === "transfer_confirm_yes" || text === "transfer_confirm_yes";
+    const isButtonNo = callbackData === "transfer_confirm_no" || text === "transfer_confirm_no";
+    const isTextYes = text === "确认" || text === "是" || text === "yes" || text === "y" || text.includes("确认转账");
+    const isTextNo = text === "取消" || text === "否" || text === "no" || text === "n" || text.includes("取消");
+    let hasPendingTransfer = !!state.pendingTransfer;
+    if (!hasPendingTransfer && message.roomId) {
+      try {
+        const recentMemories = await runtime.getMemories({
+          roomId: message.roomId,
+          count: 10,
+          unique: true,
+          tableName: "messages"
+        });
+        const confirmationMessage = recentMemories.find((mem) => {
+          const memContent = mem.content?.text || "";
+          const memAsAny = mem;
+          const memActions = mem.content?.actions || memAsAny?.data?.actions || [];
+          const memButtons = mem.content?.buttons || mem.content?.metadata?.buttons;
+          return memActions.includes("CONFIRM_TRANSFER") || memContent.includes("请确认以下转账") || memContent.includes("确认转账") || memButtons && Array.isArray(memButtons) && memButtons.some((row) => row.some((btn) => btn.callback_data === "transfer_confirm_yes" || btn.callback_data === "transfer_confirm_no"));
+        });
+        if (confirmationMessage) {
+          hasPendingTransfer = true;
+          logger3.info({}, "HANDLE_TRANSFER_CONFIRMATION validate: 从消息记忆中找到了确认请求");
+        }
+      } catch (error) {
+        logger3.error({ error }, "HANDLE_TRANSFER_CONFIRMATION validate: 获取消息记忆时出错");
+      }
+    }
+    return hasPendingTransfer && (isButtonYes || isButtonNo || isTextYes || isTextNo);
+  },
+  handler: async (runtime, message, state, _options, callback, _responses) => {
+    try {
+      logger3.info("Handling HANDLE_TRANSFER_CONFIRMATION action");
+      const callbackData = message.content?.callback_data || message.content?.metadata?.callback_data || message?.metadata?.callback_data || message?.metadata?.buttonCallbackData || message?.callback_data;
+      const text = (message.content.text || "").toLowerCase().trim();
+      const isConfirm = callbackData === "transfer_confirm_yes" || text === "transfer_confirm_yes" || text === "确认" || text === "是" || text === "yes" || text === "y" || text.includes("确认转账");
+      const isCancel = callbackData === "transfer_confirm_no" || text === "transfer_confirm_no" || text === "取消" || text === "否" || text === "no" || text === "n" || text.includes("取消");
+      if (isCancel) {
+        await callback?.({
+          text: "转账已取消",
+          actions: ["HANDLE_TRANSFER_CONFIRMATION"],
+          source: message.content.source
+        });
+        if (state.pendingTransfer) {
+          delete state.pendingTransfer;
+        }
+        return {
+          success: true,
+          text: "用户取消转账",
+          values: {
+            confirmed: false,
+            cancelled: true
+          },
+          data: {
+            actionName: "HANDLE_TRANSFER_CONFIRMATION",
+            messageId: message.id,
+            cancelled: true
+          }
+        };
+      }
+      if (isConfirm) {
+        let pendingTransfer = state.pendingTransfer;
+        if ((!pendingTransfer || !pendingTransfer.to || !pendingTransfer.amount) && message.roomId) {
+          try {
+            const recentMemories = await runtime.getMemories({
+              roomId: message.roomId,
+              count: 20,
+              unique: true,
+              tableName: "messages"
+            });
+            const confirmationMessage = recentMemories.find((mem) => {
+              const memActions = mem.content?.actions || mem?.data?.actions || [];
+              const memButtons = mem.content?.buttons || mem.content?.metadata?.buttons;
+              const memContent = mem.content?.text || "";
+              return memActions.includes("CONFIRM_TRANSFER") || memContent.includes("请确认以下转账") || memButtons && Array.isArray(memButtons) && memButtons.some((row) => row.some((btn) => btn.callback_data === "transfer_confirm_yes" || btn.callback_data === "transfer_confirm_no"));
+            });
+            if (confirmationMessage) {
+              const memContent = confirmationMessage.content?.text || "";
+              const transferParams = extractTransferParams(memContent);
+              if (transferParams.to && transferParams.amount) {
+                pendingTransfer = {
+                  originalText: memContent,
+                  timestamp: confirmationMessage.createdAt ? new Date(confirmationMessage.createdAt).getTime() : Date.now(),
+                  to: transferParams.to,
+                  amount: transferParams.amount
+                };
+              }
+            }
+            if (!pendingTransfer && confirmationMessage) {
+              const userTransferMessage = recentMemories.find((mem) => {
+                const memAsAny = mem;
+                const messageAsAny = message;
+                const isUserMessage = memAsAny.userId && memAsAny.userId === messageAsAny.userId && memAsAny.userId !== messageAsAny.agentId;
+                if (!isUserMessage) {
+                  const source = mem.content?.source;
+                  const isNotAgent = source !== "agent" && source !== "assistant";
+                  if (!isNotAgent)
+                    return false;
+                }
+                const memText = mem.content?.text || "";
+                const addressRegex3 = /0x[a-fA-F0-9]{40}/;
+                const hasAddress = addressRegex3.test(memText);
+                const hasTransferKeyword = /转账|发送|transfer|send/i.test(memText);
+                const hasAmount = /\d+\.?\d*/.test(memText);
+                return hasAddress && hasTransferKeyword && hasAmount;
+              });
+              if (userTransferMessage) {
+                const originalText = userTransferMessage.content?.text || "";
+                const transferParams = extractTransferParams(originalText);
+                if (transferParams.to && transferParams.amount) {
+                  pendingTransfer = {
+                    originalText,
+                    timestamp: userTransferMessage.createdAt ? new Date(userTransferMessage.createdAt).getTime() : Date.now(),
+                    to: transferParams.to,
+                    amount: transferParams.amount
+                  };
+                }
+              }
+            }
+          } catch (error) {
+            logger3.error({ error }, "HANDLE_TRANSFER_CONFIRMATION: 从消息记忆中恢复转账信息时出错");
+          }
+        }
+        if (!pendingTransfer || !pendingTransfer.to || !pendingTransfer.amount) {
+          await callback?.({
+            text: "未找到转账信息，请重新发起转账请求。",
+            actions: ["HANDLE_TRANSFER_CONFIRMATION"],
+            source: message.content.source
+          });
+          return {
+            success: false,
+            text: "转账信息丢失",
+            values: {
+              error: "PENDING_TRANSFER_NOT_FOUND"
+            },
+            data: {
+              actionName: "HANDLE_TRANSFER_CONFIRMATION",
+              messageId: message.id
+            },
+            error: new Error("PENDING_TRANSFER_NOT_FOUND")
+          };
+        }
+        delete state.pendingTransfer;
+        const result = await executeTransfer(pendingTransfer.to, pendingTransfer.amount, pendingTransfer.originalText, callback);
+        return {
+          ...result,
+          success: result.success,
+          text: result.text || "转账完成",
+          values: {
+            ...result.values,
+            confirmed: true
+          },
+          data: {
+            ...result.data,
+            confirmed: true
+          }
+        };
+      }
+      await callback?.({
+        text: "未知的确认响应，请重新发起转账。",
+        actions: ["HANDLE_TRANSFER_CONFIRMATION"],
+        source: message.content.source
+      });
+      return {
+        success: false,
+        text: "未知的确认响应",
+        values: {
+          error: "UNKNOWN_CONFIRMATION_RESPONSE"
+        },
+        data: {
+          actionName: "HANDLE_TRANSFER_CONFIRMATION",
+          messageId: message.id,
+          callbackData
+        },
+        error: new Error("UNKNOWN_CONFIRMATION_RESPONSE")
+      };
+    } catch (error) {
+      logger3.error({ error }, "Error in HANDLE_TRANSFER_CONFIRMATION action:");
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await callback?.({
+        text: `处理确认响应时出现错误：${errorMessage}
+
+请稍后重试。`,
+        actions: ["HANDLE_TRANSFER_CONFIRMATION"],
+        source: message.content.source
+      });
+      return {
+        success: false,
+        text: "确认处理失败",
+        values: {
+          error: "CONFIRMATION_HANDLING_FAILED",
+          errorMessage
+        },
+        data: {
+          actionName: "HANDLE_TRANSFER_CONFIRMATION",
+          error: errorMessage,
+          messageId: message.id
+        },
+        error: error instanceof Error ? error : new Error(errorMessage)
+      };
+    }
+  },
+  examples: []
+};
+var evmTransferPlugin = {
+  name: "EVM Transfer Plugin",
+  description: "EVM转账插件（带确认机制）",
+  priority: 1e4,
+  actions: [
+    handleTransferConfirmationAction,
+    confirmTransferAction
+  ]
 };
 
 // src/nft-plugin.ts
 init_nft_service();
-import { logger as logger4 } from "@elizaos/core";
-var extractAddress = (text) => {
+import { logger as logger5 } from "@elizaos/core";
+var extractAddress2 = (text) => {
   const addressRegex3 = /0x[a-fA-F0-9]{40}/;
   const match = text.match(addressRegex3);
   return match ? match[0] : null;
@@ -21642,17 +22742,16 @@ var nftMintAction = {
       "创建一个新的nft"
     ];
     const hasMintKeyword = mintKeywords.some((keyword) => text.includes(keyword));
-    logger4.info({ text, hasMintKeyword }, "NFT_MINT validate result");
     if (hasMintKeyword) {
-      logger4.info("NFT_MINT action will be triggered for mint request");
+      logger5.info("NFT_MINT action will be triggered for mint request");
     }
     return hasMintKeyword;
   },
   handler: async (_runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger4.info("Handling NFT_MINT action");
+      logger5.info("Handling NFT_MINT action");
       const text = message.content.text || "";
-      const toAddress = extractAddress(text);
+      const toAddress = extractAddress2(text);
       let nftService;
       try {
         nftService = new NFTService;
@@ -21711,7 +22810,7 @@ NFT 已使用默认属性创建，后续可以通过其他方式更新元数据�
         success: true
       };
     } catch (error) {
-      logger4.error({ error }, "Error in NFT_MINT action:");
+      logger5.error({ error }, "Error in NFT_MINT action:");
       await callback({
         text: `铸造 NFT 失败: ${error.message || "未知错误"}`,
         actions: ["NFT_MINT"],
@@ -21770,16 +22869,15 @@ var nftListAction = {
     ];
     const hasListKeyword = listKeywords.some((keyword) => text.includes(keyword));
     const hasNumber = /\d+/.test(text);
-    logger4.info({ text, hasListKeyword, hasNumber }, "NFT_LIST validate result");
     const shouldTrigger = hasListKeyword && hasNumber;
     if (shouldTrigger) {
-      logger4.info("NFT_LIST action will be triggered for list request");
+      logger5.info("NFT_LIST action will be triggered for list request");
     }
     return shouldTrigger;
   },
   handler: async (_runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger4.info("Handling NFT_LIST action");
+      logger5.info("Handling NFT_LIST action");
       const text = message.content.text || "";
       const tokenId = extractTokenId(text);
       const price = extractPrice(text);
@@ -21844,7 +22942,7 @@ Token ID: ${tokenId}
         const errorMessage = listError.message || "";
         const isApprovalError = errorMessage.includes("0x177e802f") || errorMessage.includes("ERC721InsufficientApproval") || errorMessage.includes("insufficient approval") || errorMessage.includes("caller is not token owner or approved");
         if (isApprovalError) {
-          logger4.info(`检测到授权错误，尝试自动授权 NFT ${tokenId}...`);
+          logger5.info(`检测到授权错误，尝试自动授权 NFT ${tokenId}...`);
           try {
             const approveHash = await nftService.approveMarketplace(tokenId);
             await callback({
@@ -21878,7 +22976,7 @@ Token ID: ${tokenId}
         throw listError;
       }
     } catch (error) {
-      logger4.error({ error }, "Error in NFT_LIST action:");
+      logger5.error({ error }, "Error in NFT_LIST action:");
       const { analyzeNFTError: analyzeNFTError2 } = await Promise.resolve().then(() => (init_nft_service(), exports_nft_service));
       const errorAnalysis = analyzeNFTError2(error, "上架 NFT");
       await callback({
@@ -21939,16 +23037,15 @@ var nftStakeAction = {
     ];
     const hasStakeKeyword = stakeKeywords.some((keyword) => text.includes(keyword));
     const hasNumber = /\d+/.test(text);
-    logger4.info({ text, hasStakeKeyword, hasNumber }, "NFT_STAKE validate result");
     const shouldTrigger = hasStakeKeyword && hasNumber;
     if (shouldTrigger) {
-      logger4.info("NFT_STAKE action will be triggered for stake request");
+      logger5.info("NFT_STAKE action will be triggered for stake request");
     }
     return shouldTrigger;
   },
   handler: async (_runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger4.info("Handling NFT_STAKE action");
+      logger5.info("Handling NFT_STAKE action");
       const text = message.content.text || "";
       const tokenId = extractTokenId(text);
       if (!tokenId) {
@@ -21998,7 +23095,7 @@ Token ID: ${tokenId}`,
         const errorMessage = stakeError.message || "";
         const isApprovalError = errorMessage.includes("0x177e802f") || errorMessage.includes("ERC721InsufficientApproval") || errorMessage.includes("insufficient approval") || errorMessage.includes("caller is not token owner or approved") || errorMessage.includes("请先授权质押合约");
         if (isApprovalError) {
-          logger4.info(`检测到授权错误，尝试自动授权 NFT ${tokenId} 给质押合约...`);
+          logger5.info(`检测到授权错误，尝试自动授权 NFT ${tokenId} 给质押合约...`);
           try {
             const approveHash = await nftService.approveStaking(tokenId);
             await callback({
@@ -22031,7 +23128,7 @@ Token ID: ${tokenId}`,
         throw stakeError;
       }
     } catch (error) {
-      logger4.error({ error }, "Error in NFT_STAKE action:");
+      logger5.error({ error }, "Error in NFT_STAKE action:");
       const { analyzeNFTError: analyzeNFTError2 } = await Promise.resolve().then(() => (init_nft_service(), exports_nft_service));
       const errorAnalysis = analyzeNFTError2(error, "质押 NFT");
       await callback({
@@ -22109,15 +23206,14 @@ var nftBuyAction = {
     const hasBuyKeyword = buyKeywords.some((keyword) => text.includes(keyword));
     const hasNumber = /\d+/.test(text);
     const shouldTrigger = hasNumber && (hasNftKeyword && hasBuyKeyword || hasBuyKeyword && (text.includes("id") || text.includes("token") || text.includes("编号")));
-    logger4.info({ text, hasNftKeyword, hasBuyKeyword, hasNumber, shouldTrigger }, "NFT_BUY validate result");
     if (shouldTrigger) {
-      logger4.info("NFT_BUY action will be triggered for buy NFT request - PRIORITY ACTION");
+      logger5.info("NFT_BUY action will be triggered for buy NFT request - PRIORITY ACTION");
     }
     return shouldTrigger;
   },
   handler: async (_runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger4.info("Handling NFT_BUY action");
+      logger5.info("Handling NFT_BUY action");
       const text = message.content.text || "";
       const tokenId = extractTokenId(text);
       const price = extractPrice(text);
@@ -22223,7 +23319,7 @@ NFT 已成功转移到您的钱包！`,
         success: true
       };
     } catch (error) {
-      logger4.error({ error }, "Error in NFT_BUY action:");
+      logger5.error({ error }, "Error in NFT_BUY action:");
       const { analyzeNFTError: analyzeNFTError2 } = await Promise.resolve().then(() => (init_nft_service(), exports_nft_service));
       const errorAnalysis = analyzeNFTError2(error, "购买 NFT");
       await callback({
@@ -22323,16 +23419,15 @@ var nftUnstakeAction = {
     ];
     const hasUnstakeKeyword = unstakeKeywords.some((keyword) => text.includes(keyword));
     const hasNumber = /\d+/.test(text);
-    logger4.info({ text, hasUnstakeKeyword, hasNumber }, "NFT_UNSTAKE validate result");
     const shouldTrigger = hasUnstakeKeyword && hasNumber;
     if (shouldTrigger) {
-      logger4.info("NFT_UNSTAKE action will be triggered for unstake request");
+      logger5.info("NFT_UNSTAKE action will be triggered for unstake request");
     }
     return shouldTrigger;
   },
   handler: async (_runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger4.info("Handling NFT_UNSTAKE action");
+      logger5.info("Handling NFT_UNSTAKE action");
       const text = message.content.text || "";
       const tokenId = extractTokenId(text);
       if (!tokenId) {
@@ -22378,7 +23473,7 @@ Token ID: ${tokenId}`,
         success: true
       };
     } catch (error) {
-      logger4.error({ error }, "Error in NFT_UNSTAKE action:");
+      logger5.error({ error }, "Error in NFT_UNSTAKE action:");
       const { analyzeNFTError: analyzeNFTError2 } = await Promise.resolve().then(() => (init_nft_service(), exports_nft_service));
       const errorAnalysis = analyzeNFTError2(error, "解除质押");
       await callback({
@@ -22441,16 +23536,15 @@ var nftCreateLoanAction = {
     ];
     const hasLoanKeyword = loanKeywords.some((keyword) => text.includes(keyword));
     const hasNumber = /\d+/.test(text);
-    logger4.info({ text, hasLoanKeyword, hasNumber }, "NFT_CREATE_LOAN validate result");
     const shouldTrigger = hasLoanKeyword && hasNumber;
     if (shouldTrigger) {
-      logger4.info("NFT_CREATE_LOAN action will be triggered for create loan request");
+      logger5.info("NFT_CREATE_LOAN action will be triggered for create loan request");
     }
     return shouldTrigger;
   },
   handler: async (_runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger4.info("Handling NFT_CREATE_LOAN action");
+      logger5.info("Handling NFT_CREATE_LOAN action");
       const text = message.content.text || "";
       const tokenId = extractTokenId(text);
       const loanAmountPatterns = [
@@ -22554,7 +23648,7 @@ Token ID: ${tokenId}
         const errorMessage = loanError.message || "";
         const isApprovalError = errorMessage.includes("0x177e802f") || errorMessage.includes("ERC721InsufficientApproval") || errorMessage.includes("insufficient approval") || errorMessage.includes("caller is not token owner or approved") || errorMessage.includes("请先授权借贷合约");
         if (isApprovalError) {
-          logger4.info(`检测到授权错误，尝试自动授权 NFT ${tokenId} 给借贷合约...`);
+          logger5.info(`检测到授权错误，尝试自动授权 NFT ${tokenId} 给借贷合约...`);
           try {
             const approveHash = await nftService.approveLoan(tokenId);
             await callback({
@@ -22589,7 +23683,7 @@ Token ID: ${tokenId}
         throw loanError;
       }
     } catch (error) {
-      logger4.error({ error }, "Error in NFT_CREATE_LOAN action:");
+      logger5.error({ error }, "Error in NFT_CREATE_LOAN action:");
       const { analyzeNFTError: analyzeNFTError2 } = await Promise.resolve().then(() => (init_nft_service(), exports_nft_service));
       const errorAnalysis = analyzeNFTError2(error, "创建借贷");
       await callback({
@@ -22649,16 +23743,15 @@ var nftRepayLoanAction = {
     ];
     const hasRepayKeyword = repayKeywords.some((keyword) => text.includes(keyword));
     const hasNumber = /\d+/.test(text);
-    logger4.info({ text, hasRepayKeyword, hasNumber }, "NFT_REPAY_LOAN validate result");
     const shouldTrigger = hasRepayKeyword && hasNumber;
     if (shouldTrigger) {
-      logger4.info("NFT_REPAY_LOAN action will be triggered for repay loan request");
+      logger5.info("NFT_REPAY_LOAN action will be triggered for repay loan request");
     }
     return shouldTrigger;
   },
   handler: async (_runtime, message, _state, _options, callback, _responses) => {
     try {
-      logger4.info("Handling NFT_REPAY_LOAN action");
+      logger5.info("Handling NFT_REPAY_LOAN action");
       const text = message.content.text || "";
       const loanId = extractTokenId(text);
       if (!loanId) {
@@ -22705,7 +23798,7 @@ var nftRepayLoanAction = {
         success: true
       };
     } catch (error) {
-      logger4.error({ error }, "Error in NFT_REPAY_LOAN action:");
+      logger5.error({ error }, "Error in NFT_REPAY_LOAN action:");
       const { analyzeNFTError: analyzeNFTError2 } = await Promise.resolve().then(() => (init_nft_service(), exports_nft_service));
       const errorAnalysis = analyzeNFTError2(error, "还款");
       await callback({
@@ -22773,7 +23866,6 @@ var character = {
     ...process.env.OPENAI_API_KEY?.trim() ? ["@elizaos/plugin-openai"] : [],
     ...process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim() ? ["@elizaos/plugin-google-genai"] : [],
     ...process.env.OLLAMA_API_ENDPOINT?.trim() ? ["@elizaos/plugin-ollama"] : [],
-    ...process.env.EVM_PRIVATE_KEY?.trim() ? ["@elizaos/plugin-evm"] : [],
     ...process.env.DISCORD_API_TOKEN?.trim() ? ["@elizaos/plugin-discord"] : [],
     ...process.env.TWITTER_API_KEY?.trim() && process.env.TWITTER_API_SECRET_KEY?.trim() && process.env.TWITTER_ACCESS_TOKEN?.trim() && process.env.TWITTER_ACCESS_TOKEN_SECRET?.trim() ? ["@elizaos/plugin-twitter"] : [],
     ...process.env.TELEGRAM_BOT_TOKEN?.trim() ? ["@elizaos/plugin-telegram"] : []
@@ -22821,7 +23913,35 @@ var character = {
 
 IMPORTANT RULES:
 - Always respond to user messages. Never use the IGNORE action. Always provide helpful responses to user queries.
-- CRITICAL: When users ask about balance (余额, balance, Sepolia balance, etc.), you MUST execute the EVM_BALANCE action immediately. DO NOT use REPLY action. DO NOT ask for confirmation or additional information. This is mandatory - never use REPLY when EVM_BALANCE action is available and validate returns true.
+
+BALANCE QUERY WORKFLOW - STRICT RULES (ABSOLUTE PRIORITY):
+The balance query process has TWO mandatory steps that MUST be followed in order:
+1. STEP 1 - Initial Query: When users ask about balance (余额, balance, Sepolia balance, ETH balance, wallet balance, 查余额, 查询余额, 查看余额, etc.), you MUST IMMEDIATELY execute CONFIRM_BALANCE_QUERY action. This action will show a confirmation dialog to the user. DO NOT use REPLY action. DO NOT ask questions. DO NOT provide explanations. Just execute CONFIRM_BALANCE_QUERY immediately.
+2. STEP 2 - User Confirmation: After CONFIRM_BALANCE_QUERY displays the confirmation message, when the user sends confirmation text (确认, 是, yes, y) OR cancellation text (取消, 否, no, n) OR clicks confirm/cancel buttons, you MUST IMMEDIATELY execute HANDLE_BALANCE_CONFIRMATION action. DO NOT use REPLY action. DO NOT use CONFIRM_BALANCE_QUERY again. HANDLE_BALANCE_CONFIRMATION is the ONLY action for handling user confirmations.
+
+CRITICAL RULES FOR BALANCE QUERIES:
+- NEVER use REPLY action in the balance query workflow. REPLY is FORBIDDEN for balance queries.
+- CONFIRM_BALANCE_QUERY validate returns true → Execute CONFIRM_BALANCE_QUERY (NOT REPLY)
+- HANDLE_BALANCE_CONFIRMATION validate returns true → Execute HANDLE_BALANCE_CONFIRMATION (NOT REPLY, NOT CONFIRM_BALANCE_QUERY)
+- The balance query workflow is: User asks balance → CONFIRM_BALANCE_QUERY → User confirms → HANDLE_BALANCE_CONFIRMATION → Done
+- If you see balance-related keywords, check if CONFIRM_BALANCE_QUERY validate returns true first. If yes, execute it immediately, never use REPLY.
+- If there is a pending balance query (state.pendingBalanceQuery exists) and user sends confirmation text, HANDLE_BALANCE_CONFIRMATION validate will return true. Execute it immediately, never use REPLY.
+
+TRANSFER WORKFLOW - STRICT RULES (ABSOLUTE PRIORITY):
+The transfer process has TWO mandatory steps that MUST be followed in order:
+1. STEP 1 - Initial Request: When users want to transfer/send ETH (转账, 发送, transfer, send, send ETH, transfer ETH, 转ETH, 发送ETH, 转X eth给地址, 转X eth到地址, etc.), you MUST IMMEDIATELY execute CONFIRM_TRANSFER action. This action will show a confirmation dialog with transfer details. DO NOT use REPLY action. DO NOT use official EVM_TRANSFER action. DO NOT ask questions. DO NOT provide gas price information or network conditions. DO NOT explain anything. DO NOT say "I can help with that" or provide any information. Just execute CONFIRM_TRANSFER immediately without any REPLY.
+2. STEP 2 - User Confirmation: After CONFIRM_TRANSFER displays the confirmation message, when the user sends confirmation text (确认, 是, yes, y) OR cancellation text (取消, 否, no, n) OR clicks confirm/cancel buttons, you MUST IMMEDIATELY execute HANDLE_TRANSFER_CONFIRMATION action. DO NOT use REPLY action. DO NOT use CONFIRM_TRANSFER again. DO NOT use official EVM_TRANSFER. HANDLE_TRANSFER_CONFIRMATION is the ONLY action for handling transfer confirmations.
+
+CRITICAL RULES FOR TRANSFERS:
+- NEVER use REPLY action in the transfer workflow. REPLY is ABSOLUTELY FORBIDDEN for transfers.
+- NEVER use official EVM_TRANSFER action from @elizaos/plugin-evm. Always use CONFIRM_TRANSFER and HANDLE_TRANSFER_CONFIRMATION instead.
+- CONFIRM_TRANSFER validate returns true → Execute CONFIRM_TRANSFER (NOT REPLY, NOT EVM_TRANSFER, NOTHING ELSE)
+- HANDLE_TRANSFER_CONFIRMATION validate returns true → Execute HANDLE_TRANSFER_CONFIRMATION (NOT REPLY, NOT CONFIRM_TRANSFER, NOT EVM_TRANSFER)
+- The transfer workflow is: User requests transfer → CONFIRM_TRANSFER → User confirms → HANDLE_TRANSFER_CONFIRMATION → Done
+- If you see transfer-related keywords with address and amount, check if CONFIRM_TRANSFER validate returns true first. If yes, execute it immediately, never use REPLY or EVM_TRANSFER.
+- If there is a pending transfer (state.pendingTransfer exists) and user sends confirmation text, HANDLE_TRANSFER_CONFIRMATION validate will return true. Execute it immediately, never use REPLY.
+- When user says "转X eth给地址" or similar transfer request, DO NOT REPLY with gas prices or network information. Just execute CONFIRM_TRANSFER immediately.
+
 - CRITICAL: When users want to mint/create NFT (铸造, mint, 创建NFT, 帮我铸造), you MUST execute the NFT_MINT action immediately. DO NOT use REPLY action. DO NOT ask for name, description, or any other information. The NFT will be created with default attributes automatically. This is mandatory - never use REPLY when NFT_MINT action is available and validate returns true.
 - When users want to list/sell NFT (上架, list, 出售, sell NFT), directly execute the NFT_LIST action without asking for confirmation.
 - CRITICAL PRIORITY: When users want to buy/purchase NFT (购买, buy, purchase, 买NFT, 我要买, 购买Token ID, 购买编号), you MUST execute the NFT_BUY action immediately. DO NOT use EVM_TRANSFER or any other EVM plugin actions. NFT_BUY has the highest priority for NFT purchase requests. If NFT_BUY validate returns true, you MUST use NFT_BUY, never use any other action.
@@ -22829,7 +23949,6 @@ IMPORTANT RULES:
 - When users want to unstake NFT (解除质押, unstake, 取回 NFT), directly execute the NFT_UNSTAKE action without asking for confirmation.
 - When users want to create loan with NFT (创建借贷, create loan, 用NFT借贷), directly execute the NFT_CREATE_LOAN action without asking for confirmation.
 - When users want to repay loan (还款, repay loan), directly execute the NFT_REPAY_LOAN action without asking for confirmation.
-- For balance queries, inform the user what you are about to do (e.g., "正在查询您的Sepolia余额...") and then execute the action.
 - For NFT operations, inform the user what you are about to do (e.g., "正在上架您的NFT...") and then execute the action immediately.
 - CRITICAL ACTION SELECTION: If any action validate function returns true, you MUST execute that specific action. NEVER use REPLY when a validated action is available. For NFT_MINT, the handler automatically uses default attributes - never ask for details.
 - Be proactive and direct - execute actions immediately rather than asking for confirmation or requesting additional information.
@@ -23034,13 +24153,13 @@ Recommendation: Cancel this transaction and resubmit with 30 gwei. Would you lik
 
 // src/index.ts
 var initCharacter = ({ runtime }) => {
-  logger5.info("Initializing character");
-  logger5.info({ name: character.name }, "Name:");
+  logger6.info("Initializing character");
+  logger6.info({ name: character.name }, "Name:");
 };
 var projectAgent = {
   character,
   init: async (runtime) => await initCharacter({ runtime }),
-  plugins: [nftPlugin, plugin_default, evmBalancePlugin]
+  plugins: [nftPlugin, evmTransferPlugin, evmBalancePlugin, starterPlugin]
 };
 var project = {
   agents: [projectAgent]
@@ -23052,5 +24171,5 @@ export {
   character
 };
 
-//# debugId=833975FD36B5B33464756E2164756E21
+//# debugId=751C3D483BD0E9FD64756E2164756E21
 //# sourceMappingURL=index.js.map

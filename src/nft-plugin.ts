@@ -70,8 +70,6 @@ const nftMintAction: Action = {
     
     const hasMintKeyword = mintKeywords.some(keyword => text.includes(keyword));
     
-    logger.info({ text, hasMintKeyword }, 'NFT_MINT validate result');
-    
     if (hasMintKeyword) {
       logger.info('NFT_MINT action will be triggered for mint request');
     }
@@ -206,9 +204,7 @@ const nftListAction: Action = {
     
     const hasListKeyword = listKeywords.some(keyword => text.includes(keyword));
     const hasNumber = /\d+/.test(text);
-    
-    logger.info({ text, hasListKeyword, hasNumber }, 'NFT_LIST validate result');
-    
+  
     const shouldTrigger = hasListKeyword && hasNumber;
     
     if (shouldTrigger) {
@@ -402,9 +398,7 @@ const nftStakeAction: Action = {
     
     const hasStakeKeyword = stakeKeywords.some(keyword => text.includes(keyword));
     const hasNumber = /\d+/.test(text);
-    
-    logger.info({ text, hasStakeKeyword, hasNumber }, 'NFT_STAKE validate result');
-    
+   
     const shouldTrigger = hasStakeKeyword && hasNumber;
     
     if (shouldTrigger) {
@@ -600,9 +594,7 @@ const nftBuyAction: Action = {
       (hasNftKeyword && hasBuyKeyword) || 
       (hasBuyKeyword && (text.includes('id') || text.includes('token') || text.includes('编号')))
     );
-    
-    logger.info({ text, hasNftKeyword, hasBuyKeyword, hasNumber, shouldTrigger }, 'NFT_BUY validate result');
-    
+   
     if (shouldTrigger) {
       logger.info('NFT_BUY action will be triggered for buy NFT request - PRIORITY ACTION');
     }
@@ -791,9 +783,7 @@ const nftUnstakeAction: Action = {
     
     const hasUnstakeKeyword = unstakeKeywords.some(keyword => text.includes(keyword));
     const hasNumber = /\d+/.test(text);
-    
-    logger.info({ text, hasUnstakeKeyword, hasNumber }, 'NFT_UNSTAKE validate result');
-    
+ 
     const shouldTrigger = hasUnstakeKeyword && hasNumber;
     
     if (shouldTrigger) {
@@ -927,8 +917,6 @@ const nftCreateLoanAction: Action = {
     
     const hasLoanKeyword = loanKeywords.some(keyword => text.includes(keyword));
     const hasNumber = /\d+/.test(text);
-    
-    logger.info({ text, hasLoanKeyword, hasNumber }, 'NFT_CREATE_LOAN validate result');
     
     const shouldTrigger = hasLoanKeyword && hasNumber;
     
@@ -1167,9 +1155,7 @@ const nftRepayLoanAction: Action = {
     
     const hasRepayKeyword = repayKeywords.some(keyword => text.includes(keyword));
     const hasNumber = /\d+/.test(text);
-    
-    logger.info({ text, hasRepayKeyword, hasNumber }, 'NFT_REPAY_LOAN validate result');
-    
+   
     const shouldTrigger = hasRepayKeyword && hasNumber;
     
     if (shouldTrigger) {

@@ -8,11 +8,12 @@ import ChatPage from './pages/ChatPage';
 import WalletPage from './pages/WalletPage';
 import MyNFTPage from './pages/MyNFTPage';
 import NFTMarketplacePage from './pages/NFTMarketplacePage';
+import AddressBookPage from './pages/AddressBookPage';
+import TransferPage from './pages/TransferPage';
 
 // 主应用组件
 const App: React.FC = () => {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
-  // 将 useChat hook 提升到 App 层级，保持对话状态在路由切换时不丢失
   const {
     messages,
     currentSession,
@@ -76,6 +77,12 @@ const App: React.FC = () => {
 
               {/* NFT 市场页面 */}
               <Route path="/nft" element={<NFTMarketplacePage />} />
+
+              {/* 地址簿页面 */}
+              <Route path="/address-book" element={<AddressBookPage />} />
+
+              {/* 转账页面 */}
+              <Route path="/transfer" element={<TransferPage />} />
             </Routes>
           </div>
         </div>

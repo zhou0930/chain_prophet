@@ -9,6 +9,7 @@ import EVMBalanceCard from '../components/wallet/EVMBalanceCard';
 import ConversationHistory from '../components/chat/ConversationHistory';
 import { MessageCircle } from 'lucide-react';
 import { RefObject } from 'react';
+import { replaceNameWithAddress } from '../services/addressBook';
 
 interface ChatPageProps {
   selectedAgent: Agent | null;
@@ -72,19 +73,24 @@ const ChatPage: React.FC<ChatPageProps> = ({
 
   // 处理消息发送
   const handleSendMessage = (content: string) => {
+    // 先显示用户原始消息（乐观更新在 sendMessage 内部完成）
+    // 然后将替换后的消息发送给后端
+    const processedContent = replaceNameWithAddress(content);
+    
     if (!currentSession) {
       // 如果没有会话，先创建会话
       if (selectedAgent) {
         startNewSession(selectedAgent.id);
         // 延迟发送消息
         setTimeout(() => {
-          sendMessage(content);
+          sendMessage(processedContent);
         }, 1000);
       }
       return;
     }
 
-    sendMessage(content);
+    // 发送替换后的消息给后端，但界面上显示的是原始消息
+    sendMessage(processedContent, { originalContent: content });
   };
 
   // 处理加载历史对话
@@ -142,15 +148,26 @@ const ChatPage: React.FC<ChatPageProps> = ({
               点击此处或输入框开始对话
             </p>
             <div className="text-sm text-secondary-500 space-y-1">
-              <p>💡 支持 EVM 钱包余额查询</p>
-              <p>💡 支持私钥推导地址查询</p>
-              <p>💡 支持多种区块链网络</p>
             </div>
           </div>
         )}
 
         {messages.map((message, index) => (
-          <ChatMessage key={`${message.id}-${index}`} message={message} />
+          <ChatMessage 
+            key={`${message.id}-${index}`} 
+            message={message}
+            allMessages={messages}
+            onButtonClick={(callbackData) => {
+              // 当用户点击按钮时，通过 metadata 和顶层字段传递 callback_data
+              // 发送 callback_data 作为消息内容的一部分，但主要放在 metadata 中
+              // 这样后端可以从 message.content.callback_data 读取
+              sendMessage(callbackData, { 
+                callback_data: callbackData,
+                isButtonClick: true,
+                buttonCallbackData: callbackData,
+              });
+            }}
+          />
         ))}
 
         {isTyping && <TypingIndicator />}

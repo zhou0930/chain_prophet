@@ -105,7 +105,7 @@ export const useWallet = () => {
   }, [address]);
 
   // 查询最近的交易
-  const fetchTransactions = useCallback(async (walletAddress?: string, limit: number = 20, force: boolean = false) => {
+  const fetchTransactions = useCallback(async (walletAddress?: string, limit: number = 1000, force: boolean = false) => {
     const targetAddress = walletAddress || address;
     if (!targetAddress) {
       setError('请先配置钱包地址或私钥');

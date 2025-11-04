@@ -4,6 +4,7 @@ export interface Message {
   role: 'user' | 'agent';
   timestamp: number;
   actions?: string[];
+  buttons?: Array<Array<{ text: string; callback_data?: string; url?: string }>>;
   metadata?: Record<string, any>;
   // Action 相关字段
   isAction?: boolean;
@@ -109,4 +110,13 @@ export interface NFTLoan {
   repaymentAmount?: string; // 还款金额
   status: 'pending' | 'active' | 'repaid' | 'defaulted'; // 状态
   transactionHash?: string; // 交易哈希
+}
+
+export interface AddressEntry {
+  id: number;
+  address: string;
+  name?: string;
+  nickname?: string;
+  created_at: string;
+  updated_at: string;
 }
