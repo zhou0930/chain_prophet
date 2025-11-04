@@ -19,9 +19,12 @@ Chain Prophet 是一个集成了 AI Agent 对话、EVM 区块链交互、NFT 市
 
 ### 必需环境
 
+- **操作系统**：Linux 或 macOS（Windows 用户需要使用 WSL）
 - Node.js >= 23.3.0
 - Bun >= 1.0.0
 - npm >= 7.0.0（或 yarn >= 1.22.0 或 pnpm >= 7.0.0）
+
+> **注意**：本项目需要在 Linux 或 macOS 环境下运行。Windows 用户请安装并使用 [WSL (Windows Subsystem for Linux)](https://learn.microsoft.com/zh-cn/windows/wsl/install)。
 
 ### 安装 Bun
 

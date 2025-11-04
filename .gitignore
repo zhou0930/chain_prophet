@@ -8,6 +8,7 @@ bun.lock
 .env.development.local
 .env.test.local
 .env.production.local
+.env.example
 
 # Build outputs
 dist/
@@ -114,3 +115,5 @@ cypress/videos/
 # Package manager lock files (keep bun.lock for consistency)
 # yarn.lock
 # package-lock.json
+
+READ.md
