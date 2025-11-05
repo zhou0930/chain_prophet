@@ -127,10 +127,11 @@ VITE_APP_VERSION=1.0.0
 VITE_WALLET_PRIVATE_KEY=your_private_key_here
 VITE_SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/your_api_key
 
-# NFT 合约地址（可选，部署合约后配置）
-VITE_NFT_MARKETPLACE_ADDRESS=0x0000000000000000000000000000000000000000
-VITE_NFT_STAKING_ADDRESS=0x0000000000000000000000000000000000000000
-VITE_NFT_LOAN_ADDRESS=0x0000000000000000000000000000000000000000
+# NFT 合约地址（可选，部署合约后配置,下面地址是测试用合约）
+VITE_NFT_CONTRACT_ADDRESS=0x5c7c76fe8eA314fdb49b9388f3ac92F7a159f330
+VITE_NFT_MARKETPLACE_ADDRESS=0x96D1227aCD29057607601Afdf16BF853D5B58203
+VITE_NFT_STAKING_ADDRESS=0x0Ef064805ecad331F2d1ED363E6C7cD7E06831e9
+VITE_NFT_LOAN_ADDRESS=0xbeB3110F3563BD63dDb05F0813213d2dAC3e0BE1
 
 # Etherscan API Key（可选）
 VITE_ETHERSCAN_API_KEY=your_etherscan_api_key
@@ -262,6 +263,23 @@ npm run build
 ```
 
 构建产物将输出到 `frontend/dist/` 目录。
+
+## 关闭项目
+
+### 终端关闭（推荐）
+
+```bash
+#使用 Ctrl + C
+```
+
+### 使用关闭脚本
+
+```bash
+./stop-fullstack.sh          
+#如果有进程残留，可以用强力模式
+./stop-fullstack.sh -f       # 使用强力模式，强制关闭相关进程
+./stop-fullstack.sh --force  # 使用强力模式
+```
 
 ## 项目结构
 
