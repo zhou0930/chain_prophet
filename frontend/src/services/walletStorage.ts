@@ -135,8 +135,11 @@ export const calculateBalanceHistoryFromTransactions = (
   currentBalance: string,
   transactions: Transaction[]
 ): BalanceHistoryPoint[] => {
-  if (transactions.length === 0) {
-    // 如果没有交易，只返回当前余额点
+  // 过滤掉self交易（自己转给自己，不影响余额变化）
+  const relevantTransactions = transactions.filter(tx => tx.status !== 'self');
+  
+  if (relevantTransactions.length === 0) {
+    // 如果没有相关交易，只返回当前余额点
     return [{
       timestamp: Date.now(),
       balance: currentBalance,
@@ -149,7 +152,7 @@ export const calculateBalanceHistoryFromTransactions = (
   const history: BalanceHistoryPoint[] = [];
   
   // 按时间倒序排列交易（从新到旧），这样才能正确逆向计算
-  const sortedTx = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
+  const sortedTx = [...relevantTransactions].sort((a, b) => b.timestamp - a.timestamp);
   
   // 从最新的交易开始，逆向计算每个交易后的余额
   for (const tx of sortedTx) {

@@ -18,7 +18,7 @@ export interface Transaction {
   value: string;
   timestamp: number;
   blockNumber: bigint;
-  status: 'success' | 'failed' | 'pending';
+  status: 'success' | 'failed' | 'pending' | 'self';
   isIncoming?: boolean; // 是否为接收交易
   gasUsed?: bigint | null;
   gasPrice?: bigint | null;
@@ -152,13 +152,22 @@ export const useWallet = () => {
         const parsedTransactions: Transaction[] = data.result
           .filter((tx: any) => tx.hash && tx.blockNumber) // 过滤掉无效交易
           .map((tx: any) => {
+            const fromAddress = tx.from?.toLowerCase();
+            const toAddress = tx.to?.toLowerCase();
+            const targetAddressLower = targetAddress.toLowerCase();
+            
+            // 判断是否为self转账（自己转给自己）
+            const isSelfTransfer = fromAddress === toAddress && toAddress === targetAddressLower;
+            
             // 判断交易方向（to 地址与目标地址相同则为接收）
-            const isIncoming = tx.to?.toLowerCase() === targetAddress.toLowerCase();
+            const isIncoming = toAddress === targetAddressLower && !isSelfTransfer;
             
             // 判断交易状态
-            // txreceipt_status: "1" = 成功, "0" = 失败, null = pending
-            let status: 'success' | 'failed' | 'pending' = 'pending';
-            if (tx.txreceipt_status === '1') {
+            // 如果API返回的status字段为'self'，或者检测到是self转账，则标记为'self'
+            let status: 'success' | 'failed' | 'pending' | 'self' = 'pending';
+            if (tx.status === 'self' || isSelfTransfer) {
+              status = 'self';
+            } else if (tx.txreceipt_status === '1') {
               status = 'success';
             } else if (tx.txreceipt_status === '0') {
               status = 'failed';

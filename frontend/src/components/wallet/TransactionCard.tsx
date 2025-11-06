@@ -36,6 +36,8 @@ const TransactionCard: React.FC<TransactionCardProps> = ({ transaction, onViewEt
         return 'bg-red-100 text-red-700';
       case 'pending':
         return 'bg-yellow-100 text-yellow-700';
+      case 'self':
+        return 'bg-blue-100 text-blue-700';
       default:
         return 'bg-gray-100 text-gray-700';
     }
@@ -49,6 +51,8 @@ const TransactionCard: React.FC<TransactionCardProps> = ({ transaction, onViewEt
         return '失败';
       case 'pending':
         return '待确认';
+      case 'self':
+        return '内部转账';
       default:
         return '未知';
     }
@@ -70,7 +74,9 @@ const TransactionCard: React.FC<TransactionCardProps> = ({ transaction, onViewEt
           )}
 
           {/* 交易方向图标 */}
-          {transaction.isIncoming ? (
+          {transaction.status === 'self' ? (
+            <ArrowDown size={16} className="text-blue-500 flex-shrink-0" />
+          ) : transaction.isIncoming ? (
             <ArrowDown size={16} className="text-green-500 flex-shrink-0" />
           ) : (
             <ArrowUp size={16} className="text-red-500 flex-shrink-0" />
@@ -89,10 +95,18 @@ const TransactionCard: React.FC<TransactionCardProps> = ({ transaction, onViewEt
           {/* 金额 */}
           <span
             className={`text-sm font-semibold ml-auto flex-shrink-0 ${
-              transaction.isIncoming ? 'text-green-600' : 'text-red-600'
+              transaction.status === 'self' 
+                ? 'text-blue-600' 
+                : transaction.isIncoming 
+                  ? 'text-green-600' 
+                  : 'text-red-600'
             }`}
           >
-            {transaction.isIncoming ? '+' : '-'}{parseFloat(transaction.value).toFixed(6)} ETH
+            {transaction.status === 'self' 
+              ? '=' 
+              : transaction.isIncoming 
+                ? '+' 
+                : '-'}{parseFloat(transaction.value).toFixed(6)} ETH
           </span>
         </div>
       </button>
@@ -110,7 +124,14 @@ const TransactionCard: React.FC<TransactionCardProps> = ({ transaction, onViewEt
 
           {/* 地址信息 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {transaction.isIncoming ? (
+            {transaction.status === 'self' ? (
+              <div>
+                <div className="text-xs font-semibold text-secondary-600 mb-1">内部转账</div>
+                <div className="text-sm font-mono text-secondary-800 bg-white p-2 rounded border border-secondary-200 break-all">
+                  {transaction.from} → {transaction.to || transaction.from}
+                </div>
+              </div>
+            ) : transaction.isIncoming ? (
               <div>
                 <div className="text-xs font-semibold text-secondary-600 mb-1">发送方</div>
                 <div className="text-sm font-mono text-secondary-800 bg-white p-2 rounded border border-secondary-200 break-all">
