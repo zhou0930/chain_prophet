@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Wallet, Send, Search, AlertTriangle, ShieldCheck, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
 import { whitelistService, blacklistService } from '../services/addressBook';
 import { createPublicClientWithRetry, createWalletClientWithRetry } from '../services/rpcClient';

@@ -20,13 +20,6 @@ const TransactionCard: React.FC<TransactionCardProps> = ({ transaction, onViewEt
     });
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
 
   const getStatusColor = () => {
     switch (transaction.status) {
@@ -150,25 +143,25 @@ const TransactionCard: React.FC<TransactionCardProps> = ({ transaction, onViewEt
             <div>
               <div className="text-xs font-semibold text-secondary-600 mb-1">区块号</div>
               <div className="text-sm text-secondary-800 bg-white p-2 rounded border border-secondary-200">
-                #{transaction.blockNumber.toString()}
+                #{typeof transaction.blockNumber === 'bigint' ? transaction.blockNumber.toString() : String(transaction.blockNumber)}
               </div>
             </div>
           </div>
 
           {/* Gas 信息 */}
-          {(transaction.gasUsed || transaction.gasPrice) && (
+          {((transaction.gasUsed && transaction.gasUsed !== 0n) || (transaction.gasPrice && transaction.gasPrice !== 0n)) ? (
             <div>
               <div className="text-xs font-semibold text-secondary-600 mb-1">Gas 信息</div>
               <div className="text-xs text-secondary-800 bg-white p-2 rounded border border-secondary-200 space-y-1">
-                {transaction.gasUsed && (
+                {transaction.gasUsed && transaction.gasUsed !== 0n ? (
                   <div>Gas Used: {transaction.gasUsed.toString()}</div>
-                )}
-                {transaction.gasPrice && (
+                ) : null}
+                {transaction.gasPrice && transaction.gasPrice !== 0n ? (
                   <div>Gas Price: {transaction.gasPrice.toString()} wei</div>
-                )}
+                ) : null}
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* 查看详情按钮 */}
           <button

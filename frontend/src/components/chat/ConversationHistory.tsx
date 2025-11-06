@@ -12,7 +12,6 @@ interface ConversationHistoryProps {
 const ConversationHistory: React.FC<ConversationHistoryProps> = ({ onSelectConversation, onClose }) => {
   const [conversations, setConversations] = useState<ConversationHistoryType[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<ConversationHistoryType | null>(null);
-  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     loadConversations();
